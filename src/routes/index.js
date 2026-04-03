@@ -3,6 +3,7 @@ const provinceRoutes = require("./province.routes");
 const districtRoutes = require("./district.routes");
 const policeStationRoutes = require("./policeStation.routes");
 const authRoutes = require("./auth.routes");
+const userRoutes = require("./user.routes");
 
 const handleRoutes = async (req, res, pathname, query) => {
   const provinceHandled = await provinceRoutes(req, res, pathname, query);
@@ -16,6 +17,9 @@ const handleRoutes = async (req, res, pathname, query) => {
 
   const authHandled = await authRoutes(req, res, pathname, query);
   if (authHandled !== false) return;
+
+  const userHandled = await userRoutes(req, res, pathname, query);
+  if (userHandled !== false) return;
 
   return sendJson(res, 404, {
     success: false,
