@@ -9,6 +9,7 @@ db.sequelize = sequelize;
 db.Province = require("./province.model")(sequelize, DataTypes);
 db.District = require("./district.model")(sequelize, DataTypes);
 db.PoliceStation = require("./policeStation.model")(sequelize, DataTypes);
+db.UserAccount = require("./userAccount.model")(sequelize, DataTypes);
 
 Object.keys(db).forEach((modelName) => {
   if (db[modelName] && db[modelName].associate) {
