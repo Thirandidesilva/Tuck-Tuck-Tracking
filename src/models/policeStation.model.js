@@ -30,9 +30,18 @@ module.exports = (sequelize, DataTypes) => {
     });
 
     PoliceStation.associate = (models) => {
+        // Province District  relationship
         PoliceStation.belongsTo(models.District, {
             foreignKey: 'district_id',
             as: 'district'
+        });
+
+        //  One station has many users
+        PoliceStation.hasMany(models.UserAccount, {
+            foreignKey: 'station_id',
+            as: 'users',
+            onUpdate: 'CASCADE',
+            onDelete: 'SET NULL'
         });
     };
 
