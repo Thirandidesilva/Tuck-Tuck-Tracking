@@ -13,6 +13,7 @@ db.UserAccount = require("./userAccount.model")(sequelize, DataTypes);
 db.Driver = require("./driver.model")(sequelize, DataTypes);
 db.Vehicle = require("./vehicle.model")(sequelize, DataTypes);
 db.TrackingDevice = require("./trackingDevice.model")(sequelize, DataTypes);
+db.VehicleAssignment = require("./vehicleAssignment.model")(sequelize, DataTypes);
 
 Object.keys(db).forEach((modelName) => {
   if (db[modelName] && db[modelName].associate) {

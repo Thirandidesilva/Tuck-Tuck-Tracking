@@ -38,5 +38,12 @@ module.exports = (sequelize, DataTypes) => {
         updatedAt: false
     });
 
+    Driver.associate = (models) => {
+        Driver.hasMany(models.VehicleAssignment, {
+            foreignKey: "driver_id",
+            as: "assignments"
+        });
+    };
+
     return Driver;
 };

@@ -39,5 +39,12 @@ module.exports = (sequelize, DataTypes) => {
         updatedAt: false
     });
 
+    TrackingDevice.associate = (models) => {
+        TrackingDevice.hasMany(models.VehicleAssignment, {
+            foreignKey: "device_id",
+            as: "assignments"
+        });
+    };
+
     return TrackingDevice;
 };
