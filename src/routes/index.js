@@ -6,6 +6,7 @@ const authRoutes = require("./auth.routes");
 const userRoutes = require("./user.routes");
 const driverRoutes = require("./driver.routes");
 const vehicleRoutes = require("./vehicle.routes");
+const trackingDeviceRoutes = require("./trackingDevice.routes");
 
 const handleRoutes = async (req, res, pathname, query) => {
   const provinceHandled = await provinceRoutes(req, res, pathname, query);
@@ -28,6 +29,9 @@ const handleRoutes = async (req, res, pathname, query) => {
 
   const vehicleHandled = await vehicleRoutes(req, res, pathname, query);
   if (vehicleHandled !== false) return;
+
+  const trackingDeviceHandled = await trackingDeviceRoutes(req, res, pathname, query);
+  if (trackingDeviceHandled !== false) return;
 
   return sendJson(res, 404, {
     success: false,
