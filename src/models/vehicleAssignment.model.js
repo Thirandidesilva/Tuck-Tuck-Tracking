@@ -57,6 +57,11 @@ module.exports = (sequelize, DataTypes) => {
             foreignKey: "device_id",
             as: "device"
         });
+
+        VehicleAssignment.hasMany(models.LocationPing, {
+            foreignKey: "assignment_id",
+            as: "location_pings"
+        });
     };
 
     return VehicleAssignment;

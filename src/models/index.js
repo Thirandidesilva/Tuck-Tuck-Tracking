@@ -14,6 +14,7 @@ db.Driver = require("./driver.model")(sequelize, DataTypes);
 db.Vehicle = require("./vehicle.model")(sequelize, DataTypes);
 db.TrackingDevice = require("./trackingDevice.model")(sequelize, DataTypes);
 db.VehicleAssignment = require("./vehicleAssignment.model")(sequelize, DataTypes);
+db.LocationPing = require("./locationPing.model")(sequelize, DataTypes);
 
 Object.keys(db).forEach((modelName) => {
   if (db[modelName] && db[modelName].associate) {
