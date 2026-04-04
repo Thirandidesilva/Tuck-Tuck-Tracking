@@ -5,6 +5,7 @@ const policeStationRoutes = require("./policeStation.routes");
 const authRoutes = require("./auth.routes");
 const userRoutes = require("./user.routes");
 const driverRoutes = require("./driver.routes");
+const vehicleRoutes = require("./vehicle.routes");
 
 const handleRoutes = async (req, res, pathname, query) => {
   const provinceHandled = await provinceRoutes(req, res, pathname, query);
@@ -24,6 +25,9 @@ const handleRoutes = async (req, res, pathname, query) => {
 
   const driverHandled = await driverRoutes(req, res, pathname, query);
   if (driverHandled !== false) return;
+
+  const vehicleHandled = await vehicleRoutes(req, res, pathname, query);
+  if (vehicleHandled !== false) return;
 
   return sendJson(res, 404, {
     success: false,
