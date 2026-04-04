@@ -8,6 +8,7 @@ const driverRoutes = require("./driver.routes");
 const vehicleRoutes = require("./vehicle.routes");
 const trackingDeviceRoutes = require("./trackingDevice.routes");
 const vehicleAssignmentRoutes = require("./vehicleAssignment.routes");
+const locationPingRoutes = require("./locationPing.routes");
 
 const handleRoutes = async (req, res, pathname, query) => {
   const provinceHandled = await provinceRoutes(req, res, pathname, query);
@@ -36,6 +37,9 @@ const handleRoutes = async (req, res, pathname, query) => {
 
   const vehicleAssignmentHandled = await vehicleAssignmentRoutes(req, res, pathname, query);
   if (vehicleAssignmentHandled !== false) return;
+
+  const locationPingHandled = await locationPingRoutes(req, res, pathname, query);
+  if (locationPingHandled !== false) return;
 
   return sendJson(res, 404, {
     success: false,
