@@ -1,0 +1,1100 @@
+openapi: 3.0.3
+info:
+  title: Sri Lanka Police Tuk-Tuk Tracking API
+  version: 1.0.0
+  description: |
+    REST API for managing police administrative data, users, drivers, vehicles,
+    tracking devices, vehicle assignments, and location pings.
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: Auth
+  - name: Users
+  - name: Provinces
+  - name: Districts
+  - name: Police Stations
+  - name: Drivers
+  - name: Vehicles
+  - name: Tracking Devices
+  - name: Vehicle Assignments
+  - name: Location Pings
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Route not found
+        error:
+          type: string
+          example: Optional technical error message
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          example: hq.admin@example.com
+        password:
+          type: string
+          example: Admin12345
+
+    RegisterUserRequest:
+      type: object
+      required:
+        - full_name
+        - email
+        - password
+        - role
+      properties:
+        full_name:
+          type: string
+          example: Headquarters Admin
+        email:
+          type: string
+          example: hq.admin@example.com
+        password:
+          type: string
+          example: Admin12345
+        role:
+          type: string
+          enum: [HQ_ADMIN, PROVINCIAL_OFFICER, STATION_OFFICER, SYSTEM_ADMIN]
+        station_id:
+          type: integer
+          nullable: true
+          example: 1
+        account_status:
+          type: string
+          enum: [ACTIVE, INACTIVE]
+          example: ACTIVE
+
+    User:
+      type: object
+      properties:
+        user_id:
+          type: integer
+          example: 1
+        full_name:
+          type: string
+          example: Headquarters Admin
+        email:
+          type: string
+          example: hq.admin@example.com
+        role:
+          type: string
+          example: HQ_ADMIN
+        station_id:
+          type: integer
+          nullable: true
+          example: 1
+        account_status:
+          type: string
+          example: ACTIVE
+        created_at:
+          type: string
+          format: date-time
+
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Login successful
+        token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        data:
+          $ref: '#/components/schemas/User'
+
+    Province:
+      type: object
+      properties:
+        province_id:
+          type: integer
+          example: 1
+        province_name:
+          type: string
+          example: Western
+        province_code:
+          type: string
+          example: WP
+
+    District:
+      type: object
+      properties:
+        district_id:
+          type: integer
+          example: 1
+        province_id:
+          type: integer
+          example: 1
+        district_name:
+          type: string
+          example: Colombo
+        district_code:
+          type: string
+          example: COL
+
+    PoliceStation:
+      type: object
+      properties:
+        station_id:
+          type: integer
+          example: 1
+        district_id:
+          type: integer
+          example: 1
+        station_name:
+          type: string
+          example: Negombo Police Station
+        station_code:
+          type: string
+          example: NEG001
+        address:
+          type: string
+          example: Negombo, Sri Lanka
+        contact_number:
+          type: string
+          example: 0312222222
+
+    Driver:
+      type: object
+      properties:
+        driver_id:
+          type: integer
+          example: 1
+        full_name:
+          type: string
+          example: Kasun Perera
+        nic:
+          type: string
+          example: 200012345678
+        license_number:
+          type: string
+          example: B1234567
+        phone_number:
+          type: string
+          example: 0771234567
+        address:
+          type: string
+          example: Negombo, Sri Lanka
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, SUSPENDED]
+          example: ACTIVE
+        created_at:
+          type: string
+          format: date-time
+
+    CreateDriverRequest:
+      type: object
+      required:
+        - full_name
+        - nic
+        - license_number
+        - phone_number
+      properties:
+        full_name:
+          type: string
+        nic:
+          type: string
+        license_number:
+          type: string
+        phone_number:
+          type: string
+        address:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, SUSPENDED]
+
+    Vehicle:
+      type: object
+      properties:
+        vehicle_id:
+          type: integer
+          example: 1
+        registration_number:
+          type: string
+          example: WP-ABC-1234
+        vehicle_type:
+          type: string
+          example: THREE_WHEELER
+        model:
+          type: string
+          example: Bajaj RE
+        color:
+          type: string
+          example: Black
+        year_of_manufacture:
+          type: integer
+          example: 2020
+        chassis_number:
+          type: string
+          example: CHS123456789
+        engine_number:
+          type: string
+          example: ENG123456789
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, UNDER_MAINTENANCE]
+          example: ACTIVE
+        created_at:
+          type: string
+          format: date-time
+
+    CreateVehicleRequest:
+      type: object
+      required:
+        - registration_number
+        - vehicle_type
+        - model
+        - chassis_number
+        - engine_number
+      properties:
+        registration_number:
+          type: string
+        vehicle_type:
+          type: string
+        model:
+          type: string
+        color:
+          type: string
+        year_of_manufacture:
+          type: integer
+        chassis_number:
+          type: string
+        engine_number:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, UNDER_MAINTENANCE]
+
+    TrackingDevice:
+      type: object
+      properties:
+        device_id:
+          type: integer
+          example: 1
+        device_serial_number:
+          type: string
+          example: GPS-TRK-1001
+        sim_number:
+          type: string
+          example: "94771234567"
+        manufacturer:
+          type: string
+          example: Teltonika
+        model:
+          type: string
+          example: FMB920
+        installation_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, FAULTY, MAINTENANCE]
+          example: ACTIVE
+        created_at:
+          type: string
+          format: date-time
+
+    CreateTrackingDeviceRequest:
+      type: object
+      required:
+        - device_serial_number
+        - sim_number
+        - manufacturer
+        - model
+      properties:
+        device_serial_number:
+          type: string
+        sim_number:
+          type: string
+        manufacturer:
+          type: string
+        model:
+          type: string
+        installation_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, FAULTY, MAINTENANCE]
+
+    VehicleAssignment:
+      type: object
+      properties:
+        assignment_id:
+          type: integer
+          example: 1
+        driver_id:
+          type: integer
+          example: 1
+        vehicle_id:
+          type: integer
+          example: 1
+        device_id:
+          type: integer
+          example: 1
+        assigned_at:
+          type: string
+          format: date-time
+        unassigned_at:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [ACTIVE, COMPLETED, CANCELLED]
+        notes:
+          type: string
+          example: Assigned for Negombo patrol operations
+        created_at:
+          type: string
+          format: date-time
+
+    CreateVehicleAssignmentRequest:
+      type: object
+      required:
+        - driver_id
+        - vehicle_id
+        - device_id
+      properties:
+        driver_id:
+          type: integer
+        vehicle_id:
+          type: integer
+        device_id:
+          type: integer
+        assigned_at:
+          type: string
+          format: date-time
+        unassigned_at:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [ACTIVE, COMPLETED, CANCELLED]
+        notes:
+          type: string
+
+    LocationPing:
+      type: object
+      properties:
+        ping_id:
+          type: integer
+          example: 1
+        assignment_id:
+          type: integer
+          example: 1
+        latitude:
+          type: number
+          format: double
+          example: 7.2083
+        longitude:
+          type: number
+          format: double
+          example: 79.8358
+        speed:
+          type: number
+          format: float
+          example: 32.5
+        heading:
+          type: number
+          format: float
+          example: 180
+        recorded_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    CreateLocationPingRequest:
+      type: object
+      required:
+        - assignment_id
+        - latitude
+        - longitude
+      properties:
+        assignment_id:
+          type: integer
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        speed:
+          type: number
+          format: float
+        heading:
+          type: number
+          format: float
+        recorded_at:
+          type: string
+          format: date-time
+
+paths:
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterUserRequest'
+      responses:
+        '201':
+          description: User registered successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get logged-in user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profile fetched successfully
+        '401':
+          description: Unauthorized
+
+  /api/v1/users:
+    get:
+      tags: [Users]
+      summary: Get all users
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of users
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+
+  /api/v1/users/{id}:
+    get:
+      tags: [Users]
+      summary: Get user by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User fetched successfully
+        '404':
+          description: User not found
+
+  /api/v1/users/{id}/status:
+    patch:
+      tags: [Users]
+      summary: Update user status
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                account_status:
+                  type: string
+                  enum: [ACTIVE, INACTIVE]
+      responses:
+        '200':
+          description: User status updated successfully
+        '404':
+          description: User not found
+
+  /api/v1/provinces:
+    get:
+      tags: [Provinces]
+      summary: Get all provinces
+      responses:
+        '200':
+          description: Provinces fetched successfully
+    post:
+      tags: [Provinces]
+      summary: Create province
+      responses:
+        '201':
+          description: Province created successfully
+
+  /api/v1/provinces/{id}:
+    get:
+      tags: [Provinces]
+      summary: Get province by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Province fetched successfully
+    patch:
+      tags: [Provinces]
+      summary: Update province
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Province updated successfully
+    delete:
+      tags: [Provinces]
+      summary: Delete province
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Province deleted successfully
+
+  /api/v1/districts:
+    get:
+      tags: [Districts]
+      summary: Get all districts
+      responses:
+        '200':
+          description: Districts fetched successfully
+    post:
+      tags: [Districts]
+      summary: Create district
+      responses:
+        '201':
+          description: District created successfully
+
+  /api/v1/districts/{id}:
+    get:
+      tags: [Districts]
+      summary: Get district by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: District fetched successfully
+    patch:
+      tags: [Districts]
+      summary: Update district
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: District updated successfully
+    delete:
+      tags: [Districts]
+      summary: Delete district
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: District deleted successfully
+
+  /api/v1/police-stations:
+    get:
+      tags: [Police Stations]
+      summary: Get all police stations
+      responses:
+        '200':
+          description: Police stations fetched successfully
+    post:
+      tags: [Police Stations]
+      summary: Create police station
+      responses:
+        '201':
+          description: Police station created successfully
+
+  /api/v1/police-stations/{id}:
+    get:
+      tags: [Police Stations]
+      summary: Get police station by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Police station fetched successfully
+    patch:
+      tags: [Police Stations]
+      summary: Update police station
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Police station updated successfully
+    delete:
+      tags: [Police Stations]
+      summary: Delete police station
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Police station deleted successfully
+
+  /api/v1/drivers:
+    get:
+      tags: [Drivers]
+      summary: Get all drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [ACTIVE, INACTIVE, SUSPENDED]
+      responses:
+        '200':
+          description: Drivers fetched successfully
+    post:
+      tags: [Drivers]
+      summary: Create driver
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDriverRequest'
+      responses:
+        '201':
+          description: Driver created successfully
+
+  /api/v1/drivers/{id}:
+    get:
+      tags: [Drivers]
+      summary: Get driver by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Driver fetched successfully
+    patch:
+      tags: [Drivers]
+      summary: Update driver
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Driver updated successfully
+
+  /api/v1/drivers/{id}/status:
+    patch:
+      tags: [Drivers]
+      summary: Update driver status
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Driver status updated successfully
+
+  /api/v1/vehicles:
+    get:
+      tags: [Vehicles]
+      summary: Get all vehicles
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [ACTIVE, INACTIVE, UNDER_MAINTENANCE]
+        - in: query
+          name: vehicle_type
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Vehicles fetched successfully
+    post:
+      tags: [Vehicles]
+      summary: Create vehicle
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVehicleRequest'
+      responses:
+        '201':
+          description: Vehicle created successfully
+
+  /api/v1/vehicles/{id}:
+    get:
+      tags: [Vehicles]
+      summary: Get vehicle by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Vehicle fetched successfully
+    patch:
+      tags: [Vehicles]
+      summary: Update vehicle
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Vehicle updated successfully
+
+  /api/v1/vehicles/{id}/status:
+    patch:
+      tags: [Vehicles]
+      summary: Update vehicle status
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Vehicle status updated successfully
+
+  /api/v1/tracking-devices:
+    get:
+      tags: [Tracking Devices]
+      summary: Get all tracking devices
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [ACTIVE, INACTIVE, FAULTY, MAINTENANCE]
+        - in: query
+          name: manufacturer
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tracking devices fetched successfully
+    post:
+      tags: [Tracking Devices]
+      summary: Create tracking device
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTrackingDeviceRequest'
+      responses:
+        '201':
+          description: Tracking device created successfully
+
+  /api/v1/tracking-devices/{id}:
+    get:
+      tags: [Tracking Devices]
+      summary: Get tracking device by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Tracking device fetched successfully
+    patch:
+      tags: [Tracking Devices]
+      summary: Update tracking device
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Tracking device updated successfully
+
+  /api/v1/tracking-devices/{id}/status:
+    patch:
+      tags: [Tracking Devices]
+      summary: Update tracking device status
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Tracking device status updated successfully
+
+  /api/v1/vehicle-assignments:
+    get:
+      tags: [Vehicle Assignments]
+      summary: Get all vehicle assignments
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [ACTIVE, COMPLETED, CANCELLED]
+      responses:
+        '200':
+          description: Vehicle assignments fetched successfully
+    post:
+      tags: [Vehicle Assignments]
+      summary: Create vehicle assignment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVehicleAssignmentRequest'
+      responses:
+        '201':
+          description: Vehicle assignment created successfully
+
+  /api/v1/vehicle-assignments/{id}:
+    get:
+      tags: [Vehicle Assignments]
+      summary: Get vehicle assignment by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Vehicle assignment fetched successfully
+    patch:
+      tags: [Vehicle Assignments]
+      summary: Update vehicle assignment
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Vehicle assignment updated successfully
+
+  /api/v1/vehicle-assignments/{id}/status:
+    patch:
+      tags: [Vehicle Assignments]
+      summary: Update vehicle assignment status
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Vehicle assignment status updated successfully
+
+  /api/v1/location-pings:
+    get:
+      tags: [Location Pings]
+      summary: Get all location pings
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: assignment_id
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Location pings fetched successfully
+    post:
+      tags: [Location Pings]
+      summary: Create location ping
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLocationPingRequest'
+      responses:
+        '201':
+          description: Location ping created successfully
+
+  /api/v1/location-pings/{id}:
+    get:
+      tags: [Location Pings]
+      summary: Get location ping by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Location ping fetched successfully
+
+  /api/v1/vehicles/{vehicleId}/location-pings:
+    get:
+      tags: [Location Pings]
+      summary: Get location pings by vehicle ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: vehicleId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Vehicle location pings fetched successfully

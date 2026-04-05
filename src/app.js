@@ -1,13 +1,14 @@
 const handleRoutes = require("./routes");
 const parseUrl = require("./utils/parseUrl");
 const sendJson = require("./utils/sendJson");
+const { serveSwaggerUI } = require("./docs/swaggerDocs");
 
 const app = async (req, res) => {
   try {
+    // CORS
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    res.setHeader("Content-Type", "application/json");
 
     if (req.method === "OPTIONS") {
       res.writeHead(204);
@@ -15,6 +16,13 @@ const app = async (req, res) => {
     }
 
     const { pathname, query } = parseUrl(req);
+
+    //  IMPORTANT: Serve Swagger FIRST (before JSON header)
+    const swaggerHandled = serveSwaggerUI(req, res, pathname);
+    if (swaggerHandled) return;
+
+    //  JSON content type for API responses
+    res.setHeader("Content-Type", "application/json");
 
     if (req.method === "GET" && pathname === "/") {
       return sendJson(res, 200, {
@@ -31,6 +39,7 @@ const app = async (req, res) => {
     }
 
     return await handleRoutes(req, res, pathname, query);
+
   } catch (error) {
     console.error("App error:", error);
     return sendJson(res, 500, {
