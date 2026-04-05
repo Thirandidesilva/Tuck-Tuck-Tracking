@@ -1,5 +1,6 @@
 const { VehicleAssignment, Driver, Vehicle, TrackingDevice } = require("../models");
 const sendJson = require("../utils/sendJson");
+const { authorizeRoles } = require("../middleware/role.middleware");
 
 const getRequestBody = (req) => {
   return new Promise((resolve, reject) => {
@@ -26,6 +27,19 @@ const getRequestBody = (req) => {
 
 const createVehicleAssignment = async (req, res) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const body = await getRequestBody(req);
     const {
       driver_id,
@@ -136,6 +150,20 @@ const createVehicleAssignment = async (req, res) => {
 
 const getAllVehicleAssignments = async (req, res, query) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+      "STATION_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const whereClause = {};
 
     if (query.status) {
@@ -181,6 +209,20 @@ const getAllVehicleAssignments = async (req, res, query) => {
 
 const getVehicleAssignmentById = async (req, res, assignmentId) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+      "STATION_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const assignment = await VehicleAssignment.findByPk(assignmentId, {
       include: [
         {
@@ -224,6 +266,19 @@ const getVehicleAssignmentById = async (req, res, assignmentId) => {
 
 const updateVehicleAssignment = async (req, res, assignmentId) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const body = await getRequestBody(req);
     const {
       assigned_at,
@@ -264,6 +319,19 @@ const updateVehicleAssignment = async (req, res, assignmentId) => {
 
 const updateVehicleAssignmentStatus = async (req, res, assignmentId) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const body = await getRequestBody(req);
     const { status, unassigned_at } = body;
 

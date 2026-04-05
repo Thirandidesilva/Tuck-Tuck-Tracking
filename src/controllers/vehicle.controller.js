@@ -1,5 +1,6 @@
 const { Vehicle } = require("../models");
 const sendJson = require("../utils/sendJson");
+const { authorizeRoles } = require("../middleware/role.middleware");
 
 const getRequestBody = (req) => {
   return new Promise((resolve, reject) => {
@@ -26,6 +27,19 @@ const getRequestBody = (req) => {
 
 const createVehicle = async (req, res) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const body = await getRequestBody(req);
     const {
       registration_number,
@@ -105,6 +119,20 @@ const createVehicle = async (req, res) => {
 
 const getAllVehicles = async (req, res, query) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+      "STATION_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const whereClause = {};
 
     if (query.status) {
@@ -137,6 +165,20 @@ const getAllVehicles = async (req, res, query) => {
 
 const getVehicleById = async (req, res, vehicleId) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+      "STATION_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const vehicle = await Vehicle.findByPk(vehicleId);
 
     if (!vehicle) {
@@ -162,6 +204,19 @@ const getVehicleById = async (req, res, vehicleId) => {
 
 const updateVehicle = async (req, res, vehicleId) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const body = await getRequestBody(req);
     const {
       registration_number,
@@ -249,6 +304,19 @@ const updateVehicle = async (req, res, vehicleId) => {
 
 const updateVehicleStatus = async (req, res, vehicleId) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const body = await getRequestBody(req);
     const { status } = body;
 

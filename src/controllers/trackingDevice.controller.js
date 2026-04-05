@@ -1,5 +1,6 @@
 const { TrackingDevice } = require("../models");
 const sendJson = require("../utils/sendJson");
+const { authorizeRoles } = require("../middleware/role.middleware");
 
 const getRequestBody = (req) => {
   return new Promise((resolve, reject) => {
@@ -26,6 +27,19 @@ const getRequestBody = (req) => {
 
 const createTrackingDevice = async (req, res) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const body = await getRequestBody(req);
     const {
       device_serial_number,
@@ -90,6 +104,20 @@ const createTrackingDevice = async (req, res) => {
 
 const getAllTrackingDevices = async (req, res, query) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+      "STATION_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const whereClause = {};
 
     if (query.status) {
@@ -122,6 +150,20 @@ const getAllTrackingDevices = async (req, res, query) => {
 
 const getTrackingDeviceById = async (req, res, deviceId) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+      "STATION_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const trackingDevice = await TrackingDevice.findByPk(deviceId);
 
     if (!trackingDevice) {
@@ -147,6 +189,19 @@ const getTrackingDeviceById = async (req, res, deviceId) => {
 
 const updateTrackingDevice = async (req, res, deviceId) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const body = await getRequestBody(req);
     const {
       device_serial_number,
@@ -217,6 +272,19 @@ const updateTrackingDevice = async (req, res, deviceId) => {
 
 const updateTrackingDeviceStatus = async (req, res, deviceId) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const body = await getRequestBody(req);
     const { status } = body;
 
