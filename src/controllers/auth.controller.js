@@ -2,7 +2,7 @@ const bcrypt = require("bcrypt");
 const { UserAccount, PoliceStation } = require("../models");
 const { generateToken } = require("../utils/jwt");
 const { authenticate } = require("../middleware/auth.middleware");
-const parseBody = require("../utils/parseBody");
+const { authorizeRoles } = require("../middleware/role.middleware");
 const sendJson = require("../utils/sendJson");
 
 const getRequestBody = (req) => {
@@ -30,6 +30,15 @@ const getRequestBody = (req) => {
 
 const registerUser = async (req, res) => {
   try {
+    const authResult = authorizeRoles(req, ["HQ_ADMIN", "SYSTEM_ADMIN"]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const body = await getRequestBody(req);
     const {
       full_name,
