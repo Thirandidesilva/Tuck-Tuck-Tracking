@@ -1,5 +1,6 @@
 const { Driver } = require("../models");
 const sendJson = require("../utils/sendJson");
+const { authorizeRoles } = require("../middleware/role.middleware");
 
 const getRequestBody = (req) => {
   return new Promise((resolve, reject) => {
@@ -26,6 +27,19 @@ const getRequestBody = (req) => {
 
 const createDriver = async (req, res) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const body = await getRequestBody(req);
     const {
       full_name,
@@ -84,6 +98,20 @@ const createDriver = async (req, res) => {
 
 const getAllDrivers = async (req, res, query) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+      "STATION_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const whereClause = {};
 
     if (query.status) {
@@ -112,6 +140,20 @@ const getAllDrivers = async (req, res, query) => {
 
 const getDriverById = async (req, res, driverId) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+      "STATION_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const driver = await Driver.findByPk(driverId);
 
     if (!driver) {
@@ -137,6 +179,19 @@ const getDriverById = async (req, res, driverId) => {
 
 const updateDriver = async (req, res, driverId) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const body = await getRequestBody(req);
     const {
       full_name,
@@ -201,6 +256,19 @@ const updateDriver = async (req, res, driverId) => {
 
 const updateDriverStatus = async (req, res, driverId) => {
   try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const body = await getRequestBody(req);
     const { status } = body;
 
