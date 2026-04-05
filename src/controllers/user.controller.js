@@ -1,5 +1,6 @@
 const { UserAccount, PoliceStation } = require("../models");
 const sendJson = require("../utils/sendJson");
+const { authorizeRoles } = require("../middleware/role.middleware");
 
 const getRequestBody = (req) => {
   return new Promise((resolve, reject) => {
@@ -26,6 +27,15 @@ const getRequestBody = (req) => {
 
 const getAllUsers = async (req, res, query) => {
   try {
+    const authResult = authorizeRoles(req, ["HQ_ADMIN", "SYSTEM_ADMIN"]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const users = await UserAccount.findAll({
       attributes: { exclude: ["password_hash"] },
       include: [
@@ -55,6 +65,15 @@ const getAllUsers = async (req, res, query) => {
 
 const getUserById = async (req, res, userId) => {
   try {
+    const authResult = authorizeRoles(req, ["HQ_ADMIN", "SYSTEM_ADMIN"]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const user = await UserAccount.findByPk(userId, {
       attributes: { exclude: ["password_hash"] },
       include: [
@@ -89,6 +108,15 @@ const getUserById = async (req, res, userId) => {
 
 const updateUserStatus = async (req, res, userId) => {
   try {
+    const authResult = authorizeRoles(req, ["HQ_ADMIN", "SYSTEM_ADMIN"]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
     const body = await getRequestBody(req);
     const { account_status } = body;
 
