@@ -1,16 +1,16 @@
 module.exports = (sequelize, DataTypes) => {
     const VehicleAssignment = sequelize.define("VehicleAssignment", {
         assignment_id: {
-            type: DataTypes.INTEGER,
+            type: DataTypes.UUID,
             primaryKey: true,
-            autoIncrement: true
+            defaultValue: DataTypes.UUIDV4
         },
         driver_id: {
-            type: DataTypes.INTEGER,
+            type: DataTypes.UUID,
             allowNull: false
         },
         vehicle_id: {
-            type: DataTypes.INTEGER,
+            type: DataTypes.UUID,
             allowNull: false
         },
         device_id: {

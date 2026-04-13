@@ -45,7 +45,7 @@ const getAllUsers = async (req, res, query) => {
           attributes: ["station_id", "station_name", "station_code"],
         },
       ],
-      order: [["user_id", "ASC"]],
+      order: [["created_at", "ASC"]],
     });
 
     return sendJson(res, 200, {

@@ -205,7 +205,7 @@ const sendDriverList = async (res, whereClause, includes) => {
   const drivers = await Driver.findAll({
     where: whereClause,
     include: includes,
-    order: [["driver_id", "ASC"]]
+    order: [["created_at", "ASC"]]
   });
 
   return sendJson(res, 200, {

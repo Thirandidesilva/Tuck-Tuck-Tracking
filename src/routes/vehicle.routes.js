@@ -15,7 +15,7 @@ const vehicleRoutes = async (req, res, pathname, query) => {
     return getAllVehicles(req, res, query);
   }
 
-  const vehicleMatch = pathname.match(/^\/api\/v1\/vehicles\/(\d+)$/);
+  const vehicleMatch = pathname.match(/^\/api\/v1\/vehicles\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/);
 
   if (vehicleMatch) {
     const vehicleId = vehicleMatch[1];
@@ -29,7 +29,7 @@ const vehicleRoutes = async (req, res, pathname, query) => {
     }
   }
 
-  const statusMatch = pathname.match(/^\/api\/v1\/vehicles\/(\d+)\/status$/);
+  const statusMatch = pathname.match(/^\/api\/v1\/vehicles\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/status$/);
 
   if (statusMatch) {
     const vehicleId = statusMatch[1];

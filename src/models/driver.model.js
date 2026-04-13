@@ -1,9 +1,9 @@
 module.exports = (sequelize, DataTypes) => {
     const Driver = sequelize.define("Driver", {
         driver_id: {
-            type: DataTypes.INTEGER,
+            type: DataTypes.UUID,
             primaryKey: true,
-            autoIncrement: true
+            defaultValue: DataTypes.UUIDV4
         },
         district_id: {
             type: DataTypes.INTEGER,
