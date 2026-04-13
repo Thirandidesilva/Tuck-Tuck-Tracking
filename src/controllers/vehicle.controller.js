@@ -145,7 +145,7 @@ const getAllVehicles = async (req, res, query) => {
 
     const vehicles = await Vehicle.findAll({
       where: whereClause,
-      order: [["vehicle_id", "ASC"]]
+      order: [["created_at", "ASC"]]
     });
 
     return sendJson(res, 200, {

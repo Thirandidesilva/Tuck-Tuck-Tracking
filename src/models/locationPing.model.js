@@ -6,7 +6,7 @@ module.exports = (sequelize, DataTypes) => {
             autoIncrement: true
         },
         assignment_id: {
-            type: DataTypes.INTEGER,
+            type: DataTypes.UUID,
             allowNull: false
         },
         latitude: {

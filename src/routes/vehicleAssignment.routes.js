@@ -15,7 +15,7 @@ const vehicleAssignmentRoutes = async (req, res, pathname, query) => {
     return getAllVehicleAssignments(req, res, query);
   }
 
-  const assignmentMatch = pathname.match(/^\/api\/v1\/vehicle-assignments\/(\d+)$/);
+  const assignmentMatch = pathname.match(/^\/api\/v1\/vehicle-assignments\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/);
 
   if (assignmentMatch) {
     const assignmentId = assignmentMatch[1];
@@ -29,7 +29,7 @@ const vehicleAssignmentRoutes = async (req, res, pathname, query) => {
     }
   }
 
-  const statusMatch = pathname.match(/^\/api\/v1\/vehicle-assignments\/(\d+)\/status$/);
+  const statusMatch = pathname.match(/^\/api\/v1\/vehicle-assignments\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/status$/);
 
   if (statusMatch) {
     const assignmentId = statusMatch[1];

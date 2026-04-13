@@ -3,9 +3,9 @@ module.exports = (sequelize, DataTypes) => {
     "UserAccount",
     {
       user_id: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.UUID,
         primaryKey: true,
-        autoIncrement: true,
+        defaultValue: DataTypes.UUIDV4,
       },
       station_id: {
         type: DataTypes.INTEGER,

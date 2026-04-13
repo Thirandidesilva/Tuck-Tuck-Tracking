@@ -1,9 +1,17 @@
 module.exports = (sequelize, DataTypes) => {
     const Driver = sequelize.define("Driver", {
         driver_id: {
-            type: DataTypes.INTEGER,
+            type: DataTypes.UUID,
             primaryKey: true,
-            autoIncrement: true
+            defaultValue: DataTypes.UUIDV4
+        },
+        district_id: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            references: {
+                model: "districts",
+                key: "district_id"
+            }
         },
         full_name: {
             type: DataTypes.STRING,
@@ -39,6 +47,11 @@ module.exports = (sequelize, DataTypes) => {
     });
 
     Driver.associate = (models) => {
+        Driver.belongsTo(models.District, {
+            foreignKey: "district_id",
+            as: "district"
+        });
+
         Driver.hasMany(models.VehicleAssignment, {
             foreignKey: "driver_id",
             as: "assignments"

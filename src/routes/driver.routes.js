@@ -15,7 +15,7 @@ const driverRoutes = async (req, res, pathname, query) => {
     return getAllDrivers(req, res, query);
   }
 
-  const driverMatch = pathname.match(/^\/api\/v1\/drivers\/(\d+)$/);
+  const driverMatch = pathname.match(/^\/api\/v1\/drivers\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/);
 
   if (driverMatch) {
     const driverId = driverMatch[1];
@@ -29,7 +29,7 @@ const driverRoutes = async (req, res, pathname, query) => {
     }
   }
 
-  const statusMatch = pathname.match(/^\/api\/v1\/drivers\/(\d+)\/status$/);
+  const statusMatch = pathname.match(/^\/api\/v1\/drivers\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/status$/);
 
   if (statusMatch) {
     const driverId = statusMatch[1];

@@ -1,5 +1,5 @@
 const bcrypt = require("bcrypt");
-const { UserAccount, PoliceStation } = require("../models");
+const { UserAccount, PoliceStation, District, Province } = require("../models");
 const { generateToken } = require("../utils/jwt");
 const { authenticate } = require("../middleware/auth.middleware");
 const { authorizeRoles } = require("../middleware/role.middleware");
@@ -67,12 +67,16 @@ const registerUser = async (req, res) => {
       });
     }
 
-    const stationRoles = ["STATION_OFFICER"];
+    // Both PROVINCIAL_OFFICER and STATION_OFFICER must be linked to a station.
+    // The station chain (station → district → province) is the only source of
+    // geographic scope — without it their JWT has null province_id/district_id
+    // and they would see zero data.
+    const stationRoles = ["PROVINCIAL_OFFICER", "STATION_OFFICER"];
 
     if (stationRoles.includes(role) && !station_id) {
       return sendJson(res, 400, {
         success: false,
-        message: "station_id is required for station-level users",
+        message: "station_id is required for PROVINCIAL_OFFICER and STATION_OFFICER",
       });
     }
 
@@ -139,6 +143,20 @@ const loginUser = async (req, res) => {
           model: PoliceStation,
           as: "station",
           attributes: ["station_id", "station_name", "station_code"],
+          include: [
+            {
+              model: District,
+              as: "district",
+              attributes: ["district_id", "district_name", "district_code"],
+              include: [
+                {
+                  model: Province,
+                  as: "province",
+                  attributes: ["province_id", "province_name", "province_code"],
+                },
+              ],
+            },
+          ],
         },
       ],
     });
@@ -172,10 +190,16 @@ const loginUser = async (req, res) => {
       last_login_at: currentTime,
     });
 
+    const district_id = user.station?.district?.district_id ?? null;
+    const province_id = user.station?.district?.province?.province_id ?? null;
+
     const token = generateToken({
       user_id: user.user_id,
       email: user.email,
       role: user.role,
+      station_id: user.station_id,
+      district_id,
+      province_id,
     });
 
     return sendJson(res, 200, {
@@ -189,6 +213,8 @@ const loginUser = async (req, res) => {
         role: user.role,
         account_status: user.account_status,
         station_id: user.station_id,
+        district_id,
+        province_id,
         station: user.station,
         last_login_at: currentTime,
       },

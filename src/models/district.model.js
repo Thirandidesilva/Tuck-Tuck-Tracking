@@ -33,6 +33,11 @@ module.exports = (sequelize, DataTypes) => {
             foreignKey: 'district_id',
             as: 'policeStations'
         });
+
+        District.hasMany(models.Driver, {
+            foreignKey: 'district_id',
+            as: 'drivers'
+        });
     };
 
     return District;

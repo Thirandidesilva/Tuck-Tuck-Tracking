@@ -9,7 +9,7 @@ const userRoutes = async (req, res, pathname, query) => {
     return getAllUsers(req, res, query);
   }
 
-  const userMatch = pathname.match(/^\/api\/v1\/users\/(\d+)$/);
+  const userMatch = pathname.match(/^\/api\/v1\/users\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/);
 
   if (userMatch) {
     const userId = userMatch[1];
@@ -19,7 +19,7 @@ const userRoutes = async (req, res, pathname, query) => {
     }
   }
 
-  const statusMatch = pathname.match(/^\/api\/v1\/users\/(\d+)\/status$/);
+  const statusMatch = pathname.match(/^\/api\/v1\/users\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/status$/);
 
   if (statusMatch) {
     const userId = statusMatch[1];
