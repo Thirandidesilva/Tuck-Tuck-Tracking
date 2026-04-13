@@ -1,6 +1,8 @@
-const { Vehicle } = require("../models");
+const { VehicleAssignment, Driver, Vehicle, TrackingDevice, District, Province } = require("../models");
+const db = require("../models");
 const sendJson = require("../utils/sendJson");
 const { authorizeRoles } = require("../middleware/role.middleware");
+const { getGeoScope, applyScopeToDriverInclude } = require("../middleware/scope.middleware");
 
 const getRequestBody = (req) => {
   return new Promise((resolve, reject) => {
@@ -25,7 +27,31 @@ const getRequestBody = (req) => {
   });
 };
 
-const createVehicle = async (req, res) => {
+// Checks if an assignment's driver falls within the user's geographic scope.
+// Requires assignment to be loaded with driver → district already included.
+const isAssignmentInScope = (assignment, scope) => {
+  if (scope.type === "all") return true;
+  const driver = assignment.driver;
+  if (!driver) return false;
+  if (scope.type === "district") return driver.district_id === scope.district_id;
+  if (scope.type === "province") return driver.district?.province_id === scope.province_id;
+  return false;
+};
+
+// Resolves effective scope from JWT scope + optional query param overrides.
+// Admins can narrow by province_id or district_id. Provincial officers can narrow to a district.
+const resolveEffectiveScope = (jwtScope, query) => {
+  if (jwtScope.type === "all") {
+    if (query.district_id) return { type: "district", district_id: parseInt(query.district_id) };
+    if (query.province_id) return { type: "province", province_id: parseInt(query.province_id) };
+  }
+  if (jwtScope.type === "province" && query.district_id) {
+    return { type: "district", district_id: parseInt(query.district_id) };
+  }
+  return jwtScope;
+};
+
+const createVehicleAssignment = async (req, res) => {
   try {
     const authResult = authorizeRoles(req, [
       "HQ_ADMIN",
@@ -42,82 +68,142 @@ const createVehicle = async (req, res) => {
 
     const body = await getRequestBody(req);
     const {
-      registration_number,
-      vehicle_type,
-      model,
-      color,
-      year_of_manufacture,
-      chassis_number,
-      engine_number,
-      status
+      driver_id,
+      vehicle_id,
+      device_id,
+      assigned_at,
+      unassigned_at,
+      status,
+      notes
     } = body;
 
-    if (!registration_number || !vehicle_type || !model || !chassis_number || !engine_number) {
+    if (!driver_id || !vehicle_id || !device_id) {
       return sendJson(res, 400, {
         success: false,
-        message: "registration_number, vehicle_type, model, chassis_number, and engine_number are required"
+        message: "driver_id, vehicle_id, and device_id are required"
       });
     }
 
-    const existingRegistration = await Vehicle.findOne({
-      where: { registration_number }
+    // Load driver with district so we can validate geographic scope
+    const driver = await Driver.findByPk(driver_id, {
+      include: [{ model: District, as: "district", attributes: ["district_id", "province_id"] }]
     });
+    if (!driver) {
+      return sendJson(res, 404, {
+        success: false,
+        message: "Driver not found"
+      });
+    }
 
-    if (existingRegistration) {
+    // PROVINCIAL_OFFICER can only assign drivers within their province
+    const scope = getGeoScope(authResult.user);
+    if (scope.type === "province" && driver.district?.province_id !== scope.province_id) {
+      return sendJson(res, 403, {
+        success: false,
+        message: "You can only create assignments for drivers within your province"
+      });
+    }
+
+    const vehicle = await Vehicle.findByPk(vehicle_id);
+    if (!vehicle) {
+      return sendJson(res, 404, {
+        success: false,
+        message: "Vehicle not found"
+      });
+    }
+
+    const device = await TrackingDevice.findByPk(device_id);
+    if (!device) {
+      return sendJson(res, 404, {
+        success: false,
+        message: "Tracking device not found"
+      });
+    }
+
+    const existingActiveDriverAssignment = await VehicleAssignment.findOne({
+      where: { driver_id, status: "ACTIVE" }
+    });
+    if (existingActiveDriverAssignment) {
       return sendJson(res, 409, {
         success: false,
-        message: "Registration number already exists"
+        message: "Driver already has an active assignment"
       });
     }
 
-    const existingChassis = await Vehicle.findOne({
-      where: { chassis_number }
+    const existingActiveVehicleAssignment = await VehicleAssignment.findOne({
+      where: { vehicle_id, status: "ACTIVE" }
     });
-
-    if (existingChassis) {
+    if (existingActiveVehicleAssignment) {
       return sendJson(res, 409, {
         success: false,
-        message: "Chassis number already exists"
+        message: "Vehicle already has an active assignment"
       });
     }
 
-    const existingEngine = await Vehicle.findOne({
-      where: { engine_number }
+    const existingActiveDeviceAssignment = await VehicleAssignment.findOne({
+      where: { device_id, status: "ACTIVE" }
     });
-
-    if (existingEngine) {
+    if (existingActiveDeviceAssignment) {
       return sendJson(res, 409, {
         success: false,
-        message: "Engine number already exists"
+        message: "Tracking device already has an active assignment"
       });
     }
 
-    const newVehicle = await Vehicle.create({
-      registration_number,
-      vehicle_type,
-      model,
-      color,
-      year_of_manufacture,
-      chassis_number,
-      engine_number,
-      status: status || "ACTIVE"
+    const newAssignment = await VehicleAssignment.create({
+      driver_id,
+      vehicle_id,
+      device_id,
+      assigned_at: assigned_at || new Date(),
+      unassigned_at: unassigned_at || null,
+      status: status || "ACTIVE",
+      notes
+    });
+
+    // Return with full includes
+    const created = await VehicleAssignment.findByPk(newAssignment.assignment_id, {
+      include: [
+        {
+          model: Driver,
+          as: "driver",
+          attributes: ["driver_id", "full_name", "nic", "license_number", "district_id"],
+          include: [
+            {
+              model: District,
+              as: "district",
+              attributes: ["district_id", "district_name", "district_code"],
+              include: [{ model: Province, as: "province", attributes: ["province_id", "province_name", "province_code"] }]
+            }
+          ]
+        },
+        {
+          model: Vehicle,
+          as: "vehicle",
+          attributes: ["vehicle_id", "registration_number", "vehicle_type", "model"]
+        },
+        {
+          model: TrackingDevice,
+          as: "device",
+          attributes: ["device_id", "device_serial_number", "sim_number", "manufacturer", "model"]
+        }
+      ]
     });
 
     return sendJson(res, 201, {
       success: true,
-      message: "Vehicle created successfully",
-      data: newVehicle
+      message: "Vehicle assignment created successfully",
+      data: created
     });
   } catch (error) {
     return sendJson(res, 500, {
       success: false,
-      message: "Failed to create vehicle",
+      message: "Failed to create vehicle assignment",
       error: error.message
     });
   }
 };
 
-const getAllVehicles = async (req, res, query) => {
+const getAllVehicleAssignments = async (req, res, query) => {
   try {
     const authResult = authorizeRoles(req, [
       "HQ_ADMIN",
@@ -133,37 +219,59 @@ const getAllVehicles = async (req, res, query) => {
       });
     }
 
-    const whereClause = {};
+    const jwtScope = getGeoScope(authResult.user);
+    const effectiveScope = resolveEffectiveScope(jwtScope, query);
 
+    const whereClause = {};
     if (query.status) {
       whereClause.status = query.status;
     }
 
-    if (query.vehicle_type) {
-      whereClause.vehicle_type = query.vehicle_type;
-    }
+    // Base driver include — district_id is a direct field on driver so it's always present.
+    // applyScopeToDriverInclude adds the required JOIN and where conditions for filtering.
+    // For province scope it also adds a District sub-include (district name visible in response).
+    const baseDriverInclude = {
+      model: Driver,
+      as: "driver",
+      attributes: ["driver_id", "full_name", "nic", "license_number", "district_id"]
+    };
 
-    const vehicles = await Vehicle.findAll({
+    const scopedDriverInclude = applyScopeToDriverInclude(effectiveScope, baseDriverInclude, db);
+
+    const assignments = await VehicleAssignment.findAll({
       where: whereClause,
-      order: [["vehicle_id", "ASC"]]
+      include: [
+        scopedDriverInclude,
+        {
+          model: Vehicle,
+          as: "vehicle",
+          attributes: ["vehicle_id", "registration_number", "vehicle_type", "model"]
+        },
+        {
+          model: TrackingDevice,
+          as: "device",
+          attributes: ["device_id", "device_serial_number", "sim_number", "manufacturer", "model"]
+        }
+      ],
+      order: [["assignment_id", "ASC"]]
     });
 
     return sendJson(res, 200, {
       success: true,
-      message: "Vehicles fetched successfully",
-      count: vehicles.length,
-      data: vehicles
+      message: "Vehicle assignments fetched successfully",
+      count: assignments.length,
+      data: assignments
     });
   } catch (error) {
     return sendJson(res, 500, {
       success: false,
-      message: "Failed to fetch vehicles",
+      message: "Failed to fetch vehicle assignments",
       error: error.message
     });
   }
 };
 
-const getVehicleById = async (req, res, vehicleId) => {
+const getVehicleAssignmentById = async (req, res, assignmentId) => {
   try {
     const authResult = authorizeRoles(req, [
       "HQ_ADMIN",
@@ -179,30 +287,67 @@ const getVehicleById = async (req, res, vehicleId) => {
       });
     }
 
-    const vehicle = await Vehicle.findByPk(vehicleId);
+    // Fetch first with full display includes, then scope-check on loaded data.
+    // Avoids the duplicate-alias conflict that would occur if we tried to merge
+    // a display District include and a filtering District include on the same driver.
+    const assignment = await VehicleAssignment.findByPk(assignmentId, {
+      include: [
+        {
+          model: Driver,
+          as: "driver",
+          attributes: ["driver_id", "full_name", "nic", "license_number", "phone_number", "district_id"],
+          include: [
+            {
+              model: District,
+              as: "district",
+              attributes: ["district_id", "district_name", "district_code"],
+              include: [{ model: Province, as: "province", attributes: ["province_id", "province_name", "province_code"] }]
+            }
+          ]
+        },
+        {
+          model: Vehicle,
+          as: "vehicle",
+          attributes: ["vehicle_id", "registration_number", "vehicle_type", "model", "color"]
+        },
+        {
+          model: TrackingDevice,
+          as: "device",
+          attributes: ["device_id", "device_serial_number", "sim_number", "manufacturer", "model", "status"]
+        }
+      ]
+    });
 
-    if (!vehicle) {
+    if (!assignment) {
       return sendJson(res, 404, {
         success: false,
-        message: "Vehicle not found"
+        message: "Vehicle assignment not found"
+      });
+    }
+
+    const scope = getGeoScope(authResult.user);
+    if (!isAssignmentInScope(assignment, scope)) {
+      return sendJson(res, 403, {
+        success: false,
+        message: "You do not have access to this assignment"
       });
     }
 
     return sendJson(res, 200, {
       success: true,
-      message: "Vehicle fetched successfully",
-      data: vehicle
+      message: "Vehicle assignment fetched successfully",
+      data: assignment
     });
   } catch (error) {
     return sendJson(res, 500, {
       success: false,
-      message: "Failed to fetch vehicle",
+      message: "Failed to fetch vehicle assignment",
       error: error.message
     });
   }
 };
 
-const updateVehicle = async (req, res, vehicleId) => {
+const updateVehicleAssignment = async (req, res, assignmentId) => {
   try {
     const authResult = authorizeRoles(req, [
       "HQ_ADMIN",
@@ -218,91 +363,56 @@ const updateVehicle = async (req, res, vehicleId) => {
     }
 
     const body = await getRequestBody(req);
-    const {
-      registration_number,
-      vehicle_type,
-      model,
-      color,
-      year_of_manufacture,
-      chassis_number,
-      engine_number,
-      status
-    } = body;
+    const { assigned_at, unassigned_at, status, notes } = body;
 
-    const vehicle = await Vehicle.findByPk(vehicleId);
+    const assignment = await VehicleAssignment.findByPk(assignmentId, {
+      include: [
+        {
+          model: Driver,
+          as: "driver",
+          attributes: ["driver_id", "district_id"],
+          include: [{ model: District, as: "district", attributes: ["district_id", "province_id"] }]
+        }
+      ]
+    });
 
-    if (!vehicle) {
+    if (!assignment) {
       return sendJson(res, 404, {
         success: false,
-        message: "Vehicle not found"
+        message: "Vehicle assignment not found"
       });
     }
 
-    if (registration_number && registration_number !== vehicle.registration_number) {
-      const existingRegistration = await Vehicle.findOne({
-        where: { registration_number }
+    const scope = getGeoScope(authResult.user);
+    if (!isAssignmentInScope(assignment, scope)) {
+      return sendJson(res, 403, {
+        success: false,
+        message: "You do not have access to this assignment"
       });
-
-      if (existingRegistration) {
-        return sendJson(res, 409, {
-          success: false,
-          message: "Registration number already exists"
-        });
-      }
     }
 
-    if (chassis_number && chassis_number !== vehicle.chassis_number) {
-      const existingChassis = await Vehicle.findOne({
-        where: { chassis_number }
-      });
-
-      if (existingChassis) {
-        return sendJson(res, 409, {
-          success: false,
-          message: "Chassis number already exists"
-        });
-      }
-    }
-
-    if (engine_number && engine_number !== vehicle.engine_number) {
-      const existingEngine = await Vehicle.findOne({
-        where: { engine_number }
-      });
-
-      if (existingEngine) {
-        return sendJson(res, 409, {
-          success: false,
-          message: "Engine number already exists"
-        });
-      }
-    }
-
-    await vehicle.update({
-      registration_number: registration_number ?? vehicle.registration_number,
-      vehicle_type: vehicle_type ?? vehicle.vehicle_type,
-      model: model ?? vehicle.model,
-      color: color ?? vehicle.color,
-      year_of_manufacture: year_of_manufacture ?? vehicle.year_of_manufacture,
-      chassis_number: chassis_number ?? vehicle.chassis_number,
-      engine_number: engine_number ?? vehicle.engine_number,
-      status: status ?? vehicle.status
+    await assignment.update({
+      assigned_at: assigned_at ?? assignment.assigned_at,
+      unassigned_at: unassigned_at ?? assignment.unassigned_at,
+      status: status ?? assignment.status,
+      notes: notes ?? assignment.notes
     });
 
     return sendJson(res, 200, {
       success: true,
-      message: "Vehicle updated successfully",
-      data: vehicle
+      message: "Vehicle assignment updated successfully",
+      data: assignment
     });
   } catch (error) {
     return sendJson(res, 500, {
       success: false,
-      message: "Failed to update vehicle",
+      message: "Failed to update vehicle assignment",
       error: error.message
     });
   }
 };
 
-const updateVehicleStatus = async (req, res, vehicleId) => {
+const updateVehicleAssignmentStatus = async (req, res, assignmentId) => {
   try {
     const authResult = authorizeRoles(req, [
       "HQ_ADMIN",
@@ -318,7 +428,7 @@ const updateVehicleStatus = async (req, res, vehicleId) => {
     }
 
     const body = await getRequestBody(req);
-    const { status } = body;
+    const { status, unassigned_at } = body;
 
     if (!status) {
       return sendJson(res, 400, {
@@ -327,44 +437,63 @@ const updateVehicleStatus = async (req, res, vehicleId) => {
       });
     }
 
-    const allowedStatuses = ["ACTIVE", "INACTIVE", "UNDER_MAINTENANCE"];
-
+    const allowedStatuses = ["ACTIVE", "COMPLETED", "CANCELLED"];
     if (!allowedStatuses.includes(status)) {
       return sendJson(res, 400, {
         success: false,
-        message: "Invalid status. Allowed values: ACTIVE, INACTIVE, UNDER_MAINTENANCE"
+        message: "Invalid status. Allowed values: ACTIVE, COMPLETED, CANCELLED"
       });
     }
 
-    const vehicle = await Vehicle.findByPk(vehicleId);
+    const assignment = await VehicleAssignment.findByPk(assignmentId, {
+      include: [
+        {
+          model: Driver,
+          as: "driver",
+          attributes: ["driver_id", "district_id"],
+          include: [{ model: District, as: "district", attributes: ["district_id", "province_id"] }]
+        }
+      ]
+    });
 
-    if (!vehicle) {
+    if (!assignment) {
       return sendJson(res, 404, {
         success: false,
-        message: "Vehicle not found"
+        message: "Vehicle assignment not found"
       });
     }
 
-    await vehicle.update({ status });
+    const scope = getGeoScope(authResult.user);
+    if (!isAssignmentInScope(assignment, scope)) {
+      return sendJson(res, 403, {
+        success: false,
+        message: "You do not have access to this assignment"
+      });
+    }
+
+    await assignment.update({
+      status,
+      unassigned_at: status === "ACTIVE" ? null : (unassigned_at || new Date())
+    });
 
     return sendJson(res, 200, {
       success: true,
-      message: "Vehicle status updated successfully",
-      data: vehicle
+      message: "Vehicle assignment status updated successfully",
+      data: assignment
     });
   } catch (error) {
     return sendJson(res, 500, {
       success: false,
-      message: "Failed to update vehicle status",
+      message: "Failed to update vehicle assignment status",
       error: error.message
     });
   }
 };
 
 module.exports = {
-  createVehicle,
-  getAllVehicles,
-  getVehicleById,
-  updateVehicle,
-  updateVehicleStatus
+  createVehicleAssignment,
+  getAllVehicleAssignments,
+  getVehicleAssignmentById,
+  updateVehicleAssignment,
+  updateVehicleAssignmentStatus
 };
