@@ -5,6 +5,8 @@ const seedProvinces = require("./province.seeder");
 const seedDistricts = require("./district.seeder");
 const seedPoliceStations = require("./policeStation.seeder");
 const seedDrivers = require("./driver.seeder");
+const seedUsers = require("./user.seeder");
+const seedTestData = require("./testData.seeder");
 
 const run = async () => {
   try {
@@ -16,6 +18,8 @@ const run = async () => {
     await seedDistricts();
     await seedPoliceStations();
     await seedDrivers();
+    await seedUsers();
+    await seedTestData();
 
     console.log("Seeding completed successfully");
     process.exit();

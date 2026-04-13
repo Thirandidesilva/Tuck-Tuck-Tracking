@@ -2,6 +2,7 @@ const handleRoutes = require("./routes");
 const parseUrl = require("./utils/parseUrl");
 const sendJson = require("./utils/sendJson");
 const { serveSwaggerUI } = require("./docs/swaggerDocs");
+const { verifyToken } = require("./utils/jwt");
 
 const app = async (req, res) => {
   try {
@@ -16,6 +17,19 @@ const app = async (req, res) => {
     }
 
     const { pathname, query } = parseUrl(req);
+
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      try {
+        req.user = verifyToken(token);
+      } catch {
+        return sendJson(res, 401, {
+          success: false,
+          message: "Invalid or expired token",
+        });
+      }
+    }
 
     //  IMPORTANT: Serve Swagger FIRST (before JSON header)
     const swaggerHandled = serveSwaggerUI(req, res, pathname);

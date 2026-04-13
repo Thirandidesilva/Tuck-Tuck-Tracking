@@ -27,7 +27,7 @@ const getRequestBody = (req) => {
   });
 };
 
-// Include district province on driver responses
+// Include used to display district + province on driver responses
 const districtDisplayInclude = {
   model: District,
   as: "district",
@@ -186,6 +186,8 @@ const getAllDrivers = async (req, res, query) => {
       }
     }
 
+    // geoInclude is [] for 'all'/'district' scope (use display include)
+    // geoInclude is [District w/ Province] for 'province' scope (already contains display data)
     const includes = geoInclude.length > 0 ? geoInclude : [districtDisplayInclude];
 
     return sendDriverList(res, whereClause, includes);

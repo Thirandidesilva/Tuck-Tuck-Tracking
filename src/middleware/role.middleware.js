@@ -1,13 +1,13 @@
-const { authenticate } = require("./auth.middleware");
-
 const authorizeRoles = (req, allowedRoles) => {
-  const authResult = authenticate(req);
-
-  if (!authResult.success) {
-    return authResult;
+  if (!req.user) {
+    return {
+      success: false,
+      statusCode: 401,
+      message: "Access token is missing or invalid",
+    };
   }
 
-  if (!allowedRoles.includes(authResult.user.role)) {
+  if (!allowedRoles.includes(req.user.role)) {
     return {
       success: false,
       statusCode: 403,
@@ -15,9 +15,7 @@ const authorizeRoles = (req, allowedRoles) => {
     };
   }
 
-  return authResult;
+  return { success: true, user: req.user };
 };
 
-module.exports = {
-  authorizeRoles,
-};
+module.exports = { authorizeRoles };
