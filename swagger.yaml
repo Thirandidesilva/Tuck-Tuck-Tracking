@@ -6,6 +6,25 @@ info:
     REST API for managing police administrative data, users, drivers, vehicles,
     tracking devices, vehicle assignments, and location pings.
 
+    ## Geographic Scope Filtering
+
+    All driver, vehicle assignment, and location ping list endpoints enforce
+    role-based geographic scope automatically. The scope is derived from the
+    JWT token at login time.
+
+    | Role | Scope |
+    |------|-------|
+    | SYSTEM_ADMIN | All records across all provinces |
+    | HQ_ADMIN | All records across all provinces |
+    | PROVINCIAL_OFFICER | Records in their province only |
+    | STATION_OFFICER | Records in their district only |
+
+    SYSTEM_ADMIN and HQ_ADMIN can narrow results further by passing
+    `?province_id` or `?district_id` query parameters. Officers are always
+    pinned to their JWT scope and cannot override it.
+
+    The geographic chain is: **Ping → Assignment → Driver → District → Province**
+
 servers:
   - url: http://localhost:3000
     description: Local development server
@@ -63,6 +82,10 @@ components:
         - email
         - password
         - role
+      description: |
+        `station_id` is **required** for PROVINCIAL_OFFICER and STATION_OFFICER roles.
+        The station determines the user's geographic scope (district and province) at login.
+        SYSTEM_ADMIN and HQ_ADMIN do not require a station.
       properties:
         full_name:
           type: string
@@ -79,6 +102,7 @@ components:
         station_id:
           type: integer
           nullable: true
+          description: Required for PROVINCIAL_OFFICER and STATION_OFFICER. Must be omitted or null for SYSTEM_ADMIN and HQ_ADMIN.
           example: 1
         account_status:
           type: string
@@ -89,8 +113,9 @@ components:
       type: object
       properties:
         user_id:
-          type: integer
-          example: 1
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
         full_name:
           type: string
           example: Headquarters Admin
@@ -111,6 +136,45 @@ components:
           type: string
           format: date-time
 
+    LoginUserData:
+      type: object
+      description: User data returned on successful login. Includes geographic scope IDs derived from the user's police station.
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        full_name:
+          type: string
+          example: Station Officer Colombo
+        email:
+          type: string
+          example: station@test.com
+        role:
+          type: string
+          enum: [SYSTEM_ADMIN, HQ_ADMIN, PROVINCIAL_OFFICER, STATION_OFFICER]
+          example: STATION_OFFICER
+        station_id:
+          type: integer
+          nullable: true
+          example: 1
+        district_id:
+          type: integer
+          nullable: true
+          description: District the user's station belongs to. Null for SYSTEM_ADMIN and HQ_ADMIN.
+          example: 1
+        province_id:
+          type: integer
+          nullable: true
+          description: Province the user's station belongs to. Null for SYSTEM_ADMIN and HQ_ADMIN.
+          example: 1
+        account_status:
+          type: string
+          example: ACTIVE
+        created_at:
+          type: string
+          format: date-time
+
     LoginResponse:
       type: object
       properties:
@@ -122,9 +186,12 @@ components:
           example: Login successful
         token:
           type: string
+          description: |
+            JWT token. Payload contains: `user_id`, `email`, `role`,
+            `station_id`, `district_id`, `province_id`.
           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
         data:
-          $ref: '#/components/schemas/User'
+          $ref: '#/components/schemas/LoginUserData'
 
     Province:
       type: object
@@ -179,16 +246,18 @@ components:
 
     Driver:
       type: object
+      description: Driver record including nested district and province for geographic context.
       properties:
         driver_id:
-          type: integer
-          example: 1
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440001
         full_name:
           type: string
-          example: Kasun Perera
+          example: Kamal Perera
         nic:
           type: string
-          example: 200012345678
+          example: 198812345678
         license_number:
           type: string
           example: B1234567
@@ -197,7 +266,11 @@ components:
           example: 0771234567
         address:
           type: string
-          example: Negombo, Sri Lanka
+          example: Colombo, Sri Lanka
+        district_id:
+          type: integer
+          description: The district this driver belongs to. Used for geographic scope filtering.
+          example: 1
         status:
           type: string
           enum: [ACTIVE, INACTIVE, SUSPENDED]
@@ -205,6 +278,31 @@ components:
         created_at:
           type: string
           format: date-time
+        district:
+          type: object
+          description: Nested district with province — always included in responses.
+          properties:
+            district_id:
+              type: integer
+              example: 1
+            district_name:
+              type: string
+              example: Colombo
+            district_code:
+              type: string
+              example: COL
+            province:
+              type: object
+              properties:
+                province_id:
+                  type: integer
+                  example: 1
+                province_name:
+                  type: string
+                  example: Western
+                province_code:
+                  type: string
+                  example: WP
 
     CreateDriverRequest:
       type: object
@@ -213,27 +311,43 @@ components:
         - nic
         - license_number
         - phone_number
+        - district_id
+      description: |
+        `district_id` is required and determines the driver's geographic scope.
+        PROVINCIAL_OFFICER can only create drivers within their own province.
+        STATION_OFFICER can only create drivers within their own district.
       properties:
         full_name:
           type: string
+          example: Kamal Perera
         nic:
           type: string
+          example: 198812345678
         license_number:
           type: string
+          example: B1234567
         phone_number:
           type: string
+          example: 0771234567
         address:
           type: string
+          example: Colombo, Sri Lanka
+        district_id:
+          type: integer
+          description: District the driver belongs to. Must be within the requesting officer's geographic scope.
+          example: 1
         status:
           type: string
           enum: [ACTIVE, INACTIVE, SUSPENDED]
+          example: ACTIVE
 
     Vehicle:
       type: object
       properties:
         vehicle_id:
-          type: integer
-          example: 1
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440002
         registration_number:
           type: string
           example: WP-ABC-1234
@@ -346,14 +460,17 @@ components:
       type: object
       properties:
         assignment_id:
-          type: integer
-          example: 1
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440003
         driver_id:
-          type: integer
-          example: 1
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440001
         vehicle_id:
-          type: integer
-          example: 1
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440002
         device_id:
           type: integer
           example: 1
@@ -382,9 +499,11 @@ components:
         - device_id
       properties:
         driver_id:
-          type: integer
+          type: string
+          format: uuid
         vehicle_id:
-          type: integer
+          type: string
+          format: uuid
         device_id:
           type: integer
         assigned_at:
@@ -407,8 +526,9 @@ components:
           type: integer
           example: 1
         assignment_id:
-          type: integer
-          example: 1
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440003
         latitude:
           type: number
           format: double
@@ -440,7 +560,8 @@ components:
         - longitude
       properties:
         assignment_id:
-          type: integer
+          type: string
+          format: uuid
         latitude:
           type: number
           format: double
@@ -535,7 +656,8 @@ paths:
           name: id
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
           description: User fetched successfully
@@ -553,7 +675,8 @@ paths:
           name: id
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
@@ -730,6 +853,10 @@ paths:
     get:
       tags: [Drivers]
       summary: Get all drivers
+      description: |
+        Returns drivers filtered by the caller's geographic scope (see header description).
+        SYSTEM_ADMIN and HQ_ADMIN can pass `province_id` or `district_id` to narrow results.
+        PROVINCIAL_OFFICER and STATION_OFFICER are always pinned to their own scope.
       security:
         - bearerAuth: []
       parameters:
@@ -738,12 +865,42 @@ paths:
           schema:
             type: string
             enum: [ACTIVE, INACTIVE, SUSPENDED]
+        - in: query
+          name: district_id
+          schema:
+            type: integer
+          description: Filter by district (SYSTEM_ADMIN / HQ_ADMIN only — ignored for officers).
+        - in: query
+          name: province_id
+          schema:
+            type: integer
+          description: Filter by province (SYSTEM_ADMIN / HQ_ADMIN only — ignored for officers).
       responses:
         '200':
           description: Drivers fetched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Driver'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
     post:
       tags: [Drivers]
       summary: Create driver
+      description: |
+        Creates a new driver. `district_id` is required.
+        PROVINCIAL_OFFICER can only create drivers in their province.
+        STATION_OFFICER can only create drivers in their district.
       security:
         - bearerAuth: []
       requestBody:
@@ -755,11 +912,18 @@ paths:
       responses:
         '201':
           description: Driver created successfully
+        '400':
+          description: Missing required fields or district_id not provided
+        '403':
+          description: Driver's district is outside the officer's geographic scope
+        '409':
+          description: Driver with this NIC or license number already exists
 
   /api/v1/drivers/{id}:
     get:
       tags: [Drivers]
       summary: Get driver by ID
+      description: Returns the driver only if they are within the caller's geographic scope.
       security:
         - bearerAuth: []
       parameters:
@@ -767,13 +931,31 @@ paths:
           name: id
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
           description: Driver fetched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Driver'
+        '403':
+          description: Driver is outside the caller's geographic scope
+        '404':
+          description: Driver not found
     patch:
       tags: [Drivers]
       summary: Update driver
+      description: |
+        Updates driver fields. If `district_id` is changed, the new district
+        must still be within the caller's geographic scope.
       security:
         - bearerAuth: []
       parameters:
@@ -781,10 +963,15 @@ paths:
           name: id
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
           description: Driver updated successfully
+        '403':
+          description: Driver or target district is outside the caller's geographic scope
+        '404':
+          description: Driver not found
 
   /api/v1/drivers/{id}/status:
     patch:
@@ -797,7 +984,8 @@ paths:
           name: id
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
           description: Driver status updated successfully
@@ -847,7 +1035,8 @@ paths:
           name: id
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
           description: Vehicle fetched successfully
@@ -861,7 +1050,8 @@ paths:
           name: id
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
           description: Vehicle updated successfully
@@ -877,7 +1067,8 @@ paths:
           name: id
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
           description: Vehicle status updated successfully
@@ -966,6 +1157,10 @@ paths:
     get:
       tags: [Vehicle Assignments]
       summary: Get all vehicle assignments
+      description: |
+        Returns assignments whose driver is within the caller's geographic scope.
+        The scope cascades via: Assignment → Driver → District → Province.
+        SYSTEM_ADMIN and HQ_ADMIN can override with `province_id` or `district_id`.
       security:
         - bearerAuth: []
       parameters:
@@ -974,12 +1169,29 @@ paths:
           schema:
             type: string
             enum: [ACTIVE, COMPLETED, CANCELLED]
+        - in: query
+          name: district_id
+          schema:
+            type: integer
+          description: Filter by district (SYSTEM_ADMIN / HQ_ADMIN only).
+        - in: query
+          name: province_id
+          schema:
+            type: integer
+          description: Filter by province (SYSTEM_ADMIN / HQ_ADMIN only).
       responses:
         '200':
           description: Vehicle assignments fetched successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
     post:
       tags: [Vehicle Assignments]
       summary: Create vehicle assignment
+      description: |
+        Creates an assignment. The driver being assigned must be within the
+        caller's geographic scope. All roles except read-only may create.
       security:
         - bearerAuth: []
       requestBody:
@@ -991,11 +1203,16 @@ paths:
       responses:
         '201':
           description: Vehicle assignment created successfully
+        '403':
+          description: Driver is outside the caller's geographic scope
+        '409':
+          description: Driver already has an active assignment
 
   /api/v1/vehicle-assignments/{id}:
     get:
       tags: [Vehicle Assignments]
       summary: Get vehicle assignment by ID
+      description: Returns the assignment only if its driver is within the caller's geographic scope.
       security:
         - bearerAuth: []
       parameters:
@@ -1003,13 +1220,19 @@ paths:
           name: id
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
           description: Vehicle assignment fetched successfully
+        '403':
+          description: Assignment's driver is outside the caller's geographic scope
+        '404':
+          description: Assignment not found
     patch:
       tags: [Vehicle Assignments]
       summary: Update vehicle assignment
+      description: Updates the assignment. The driver must be within the caller's geographic scope.
       security:
         - bearerAuth: []
       parameters:
@@ -1017,10 +1240,15 @@ paths:
           name: id
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
           description: Vehicle assignment updated successfully
+        '403':
+          description: Assignment's driver is outside the caller's geographic scope
+        '404':
+          description: Assignment not found
 
   /api/v1/vehicle-assignments/{id}/status:
     patch:
@@ -1033,7 +1261,8 @@ paths:
           name: id
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
           description: Vehicle assignment status updated successfully
@@ -1042,19 +1271,40 @@ paths:
     get:
       tags: [Location Pings]
       summary: Get all location pings
+      description: |
+        Returns pings whose assignment's driver is within the caller's geographic scope.
+        Scope chain: Ping → Assignment → Driver → District → Province.
+        SYSTEM_ADMIN and HQ_ADMIN can override with `province_id` or `district_id`.
       security:
         - bearerAuth: []
       parameters:
         - in: query
           name: assignment_id
           schema:
+            type: string
+            format: uuid
+          description: Filter pings for a specific assignment.
+        - in: query
+          name: district_id
+          schema:
             type: integer
+          description: Filter by district (SYSTEM_ADMIN / HQ_ADMIN only).
+        - in: query
+          name: province_id
+          schema:
+            type: integer
+          description: Filter by province (SYSTEM_ADMIN / HQ_ADMIN only).
       responses:
         '200':
           description: Location pings fetched successfully
+        '401':
+          description: Unauthorized
     post:
       tags: [Location Pings]
       summary: Create location ping
+      description: |
+        Records a new GPS ping for an assignment. The assignment's driver must
+        be within the caller's geographic scope.
       security:
         - bearerAuth: []
       requestBody:
@@ -1066,11 +1316,16 @@ paths:
       responses:
         '201':
           description: Location ping created successfully
+        '403':
+          description: Assignment's driver is outside the caller's geographic scope
+        '404':
+          description: Assignment not found
 
   /api/v1/location-pings/{id}:
     get:
       tags: [Location Pings]
       summary: Get location ping by ID
+      description: Returns the ping only if its assignment's driver is within the caller's geographic scope.
       security:
         - bearerAuth: []
       parameters:
@@ -1082,11 +1337,19 @@ paths:
       responses:
         '200':
           description: Location ping fetched successfully
+        '403':
+          description: Ping's driver is outside the caller's geographic scope
+        '404':
+          description: Ping not found
 
   /api/v1/vehicles/{vehicleId}/location-pings:
     get:
       tags: [Location Pings]
       summary: Get location pings by vehicle ID
+      description: |
+        Returns all pings for a vehicle filtered by the caller's geographic scope.
+        The vehicle must currently have an active assignment whose driver is
+        within the caller's scope.
       security:
         - bearerAuth: []
       parameters:
@@ -1094,7 +1357,12 @@ paths:
           name: vehicleId
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
           description: Vehicle location pings fetched successfully
+        '403':
+          description: Vehicle's assigned driver is outside the caller's geographic scope
+        '404':
+          description: Vehicle not found

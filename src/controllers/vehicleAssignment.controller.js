@@ -1,6 +1,8 @@
-const { VehicleAssignment, Driver, Vehicle, TrackingDevice } = require("../models");
+const { VehicleAssignment, Driver, Vehicle, TrackingDevice, District, Province } = require("../models");
+const db = require("../models");
 const sendJson = require("../utils/sendJson");
 const { authorizeRoles } = require("../middleware/role.middleware");
+const { getGeoScope, applyScopeToDriverInclude } = require("../middleware/scope.middleware");
 
 const getRequestBody = (req) => {
   return new Promise((resolve, reject) => {
@@ -23,6 +25,30 @@ const getRequestBody = (req) => {
       reject(error);
     });
   });
+};
+
+// Checks if an assignment's driver falls within the user's geographic scope.
+// Requires assignment to be loaded with driver → district already included.
+const isAssignmentInScope = (assignment, scope) => {
+  if (scope.type === "all") return true;
+  const driver = assignment.driver;
+  if (!driver) return false;
+  if (scope.type === "district") return driver.district_id === scope.district_id;
+  if (scope.type === "province") return driver.district?.province_id === scope.province_id;
+  return false;
+};
+
+// Resolves effective scope from JWT scope + optional query param overrides.
+// Admins can narrow by province_id or district_id. Provincial officers can narrow to a district.
+const resolveEffectiveScope = (jwtScope, query) => {
+  if (jwtScope.type === "all") {
+    if (query.district_id) return { type: "district", district_id: parseInt(query.district_id) };
+    if (query.province_id) return { type: "province", province_id: parseInt(query.province_id) };
+  }
+  if (jwtScope.type === "province" && query.district_id) {
+    return { type: "district", district_id: parseInt(query.district_id) };
+  }
+  return jwtScope;
 };
 
 const createVehicleAssignment = async (req, res) => {
@@ -58,11 +84,23 @@ const createVehicleAssignment = async (req, res) => {
       });
     }
 
-    const driver = await Driver.findByPk(driver_id);
+    // Load driver with district so we can validate geographic scope
+    const driver = await Driver.findByPk(driver_id, {
+      include: [{ model: District, as: "district", attributes: ["district_id", "province_id"] }]
+    });
     if (!driver) {
       return sendJson(res, 404, {
         success: false,
         message: "Driver not found"
+      });
+    }
+
+    // PROVINCIAL_OFFICER can only assign drivers within their province
+    const scope = getGeoScope(authResult.user);
+    if (scope.type === "province" && driver.district?.province_id !== scope.province_id) {
+      return sendJson(res, 403, {
+        success: false,
+        message: "You can only create assignments for drivers within your province"
       });
     }
 
@@ -83,12 +121,8 @@ const createVehicleAssignment = async (req, res) => {
     }
 
     const existingActiveDriverAssignment = await VehicleAssignment.findOne({
-      where: {
-        driver_id,
-        status: "ACTIVE"
-      }
+      where: { driver_id, status: "ACTIVE" }
     });
-
     if (existingActiveDriverAssignment) {
       return sendJson(res, 409, {
         success: false,
@@ -97,12 +131,8 @@ const createVehicleAssignment = async (req, res) => {
     }
 
     const existingActiveVehicleAssignment = await VehicleAssignment.findOne({
-      where: {
-        vehicle_id,
-        status: "ACTIVE"
-      }
+      where: { vehicle_id, status: "ACTIVE" }
     });
-
     if (existingActiveVehicleAssignment) {
       return sendJson(res, 409, {
         success: false,
@@ -111,12 +141,8 @@ const createVehicleAssignment = async (req, res) => {
     }
 
     const existingActiveDeviceAssignment = await VehicleAssignment.findOne({
-      where: {
-        device_id,
-        status: "ACTIVE"
-      }
+      where: { device_id, status: "ACTIVE" }
     });
-
     if (existingActiveDeviceAssignment) {
       return sendJson(res, 409, {
         success: false,
@@ -134,10 +160,39 @@ const createVehicleAssignment = async (req, res) => {
       notes
     });
 
+    // Return with full includes
+    const created = await VehicleAssignment.findByPk(newAssignment.assignment_id, {
+      include: [
+        {
+          model: Driver,
+          as: "driver",
+          attributes: ["driver_id", "full_name", "nic", "license_number", "district_id"],
+          include: [
+            {
+              model: District,
+              as: "district",
+              attributes: ["district_id", "district_name", "district_code"],
+              include: [{ model: Province, as: "province", attributes: ["province_id", "province_name", "province_code"] }]
+            }
+          ]
+        },
+        {
+          model: Vehicle,
+          as: "vehicle",
+          attributes: ["vehicle_id", "registration_number", "vehicle_type", "model"]
+        },
+        {
+          model: TrackingDevice,
+          as: "device",
+          attributes: ["device_id", "device_serial_number", "sim_number", "manufacturer", "model"]
+        }
+      ]
+    });
+
     return sendJson(res, 201, {
       success: true,
       message: "Vehicle assignment created successfully",
-      data: newAssignment
+      data: created
     });
   } catch (error) {
     return sendJson(res, 500, {
@@ -164,20 +219,29 @@ const getAllVehicleAssignments = async (req, res, query) => {
       });
     }
 
-    const whereClause = {};
+    const jwtScope = getGeoScope(authResult.user);
+    const effectiveScope = resolveEffectiveScope(jwtScope, query);
 
+    const whereClause = {};
     if (query.status) {
       whereClause.status = query.status;
     }
 
+    // Base driver include — district_id is a direct field on driver so it's always present.
+    // applyScopeToDriverInclude adds the required JOIN and where conditions for filtering.
+    // For province scope it also adds a District sub-include (district name visible in response).
+    const baseDriverInclude = {
+      model: Driver,
+      as: "driver",
+      attributes: ["driver_id", "full_name", "nic", "license_number", "district_id"]
+    };
+
+    const scopedDriverInclude = applyScopeToDriverInclude(effectiveScope, baseDriverInclude, db);
+
     const assignments = await VehicleAssignment.findAll({
       where: whereClause,
       include: [
-        {
-          model: Driver,
-          as: "driver",
-          attributes: ["driver_id", "full_name", "nic", "license_number"]
-        },
+        scopedDriverInclude,
         {
           model: Vehicle,
           as: "vehicle",
@@ -189,7 +253,7 @@ const getAllVehicleAssignments = async (req, res, query) => {
           attributes: ["device_id", "device_serial_number", "sim_number", "manufacturer", "model"]
         }
       ],
-      order: [["assignment_id", "ASC"]]
+      order: [["created_at", "ASC"]]
     });
 
     return sendJson(res, 200, {
@@ -223,12 +287,23 @@ const getVehicleAssignmentById = async (req, res, assignmentId) => {
       });
     }
 
+    // Fetch first with full display includes, then scope-check on loaded data.
+    // Avoids the duplicate-alias conflict that would occur if we tried to merge
+    // a display District include and a filtering District include on the same driver.
     const assignment = await VehicleAssignment.findByPk(assignmentId, {
       include: [
         {
           model: Driver,
           as: "driver",
-          attributes: ["driver_id", "full_name", "nic", "license_number", "phone_number"]
+          attributes: ["driver_id", "full_name", "nic", "license_number", "phone_number", "district_id"],
+          include: [
+            {
+              model: District,
+              as: "district",
+              attributes: ["district_id", "district_name", "district_code"],
+              include: [{ model: Province, as: "province", attributes: ["province_id", "province_name", "province_code"] }]
+            }
+          ]
         },
         {
           model: Vehicle,
@@ -247,6 +322,14 @@ const getVehicleAssignmentById = async (req, res, assignmentId) => {
       return sendJson(res, 404, {
         success: false,
         message: "Vehicle assignment not found"
+      });
+    }
+
+    const scope = getGeoScope(authResult.user);
+    if (!isAssignmentInScope(assignment, scope)) {
+      return sendJson(res, 403, {
+        success: false,
+        message: "You do not have access to this assignment"
       });
     }
 
@@ -280,19 +363,31 @@ const updateVehicleAssignment = async (req, res, assignmentId) => {
     }
 
     const body = await getRequestBody(req);
-    const {
-      assigned_at,
-      unassigned_at,
-      status,
-      notes
-    } = body;
+    const { assigned_at, unassigned_at, status, notes } = body;
 
-    const assignment = await VehicleAssignment.findByPk(assignmentId);
+    const assignment = await VehicleAssignment.findByPk(assignmentId, {
+      include: [
+        {
+          model: Driver,
+          as: "driver",
+          attributes: ["driver_id", "district_id"],
+          include: [{ model: District, as: "district", attributes: ["district_id", "province_id"] }]
+        }
+      ]
+    });
 
     if (!assignment) {
       return sendJson(res, 404, {
         success: false,
         message: "Vehicle assignment not found"
+      });
+    }
+
+    const scope = getGeoScope(authResult.user);
+    if (!isAssignmentInScope(assignment, scope)) {
+      return sendJson(res, 403, {
+        success: false,
+        message: "You do not have access to this assignment"
       });
     }
 
@@ -343,7 +438,6 @@ const updateVehicleAssignmentStatus = async (req, res, assignmentId) => {
     }
 
     const allowedStatuses = ["ACTIVE", "COMPLETED", "CANCELLED"];
-
     if (!allowedStatuses.includes(status)) {
       return sendJson(res, 400, {
         success: false,
@@ -351,12 +445,29 @@ const updateVehicleAssignmentStatus = async (req, res, assignmentId) => {
       });
     }
 
-    const assignment = await VehicleAssignment.findByPk(assignmentId);
+    const assignment = await VehicleAssignment.findByPk(assignmentId, {
+      include: [
+        {
+          model: Driver,
+          as: "driver",
+          attributes: ["driver_id", "district_id"],
+          include: [{ model: District, as: "district", attributes: ["district_id", "province_id"] }]
+        }
+      ]
+    });
 
     if (!assignment) {
       return sendJson(res, 404, {
         success: false,
         message: "Vehicle assignment not found"
+      });
+    }
+
+    const scope = getGeoScope(authResult.user);
+    if (!isAssignmentInScope(assignment, scope)) {
+      return sendJson(res, 403, {
+        success: false,
+        message: "You do not have access to this assignment"
       });
     }
 

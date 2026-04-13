@@ -9,7 +9,7 @@ const startServer = async () => {
     await connectDB();
 
     // Sync all Sequelize models to the database
-    await db.sequelize.sync({ alter: true });
+    await db.sequelize.sync({ force: false });
     console.log("Models synchronized successfully.");
 
     const server = http.createServer(app);
