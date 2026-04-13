@@ -2,7 +2,7 @@ const { Driver, District, Province } = require("../models");
 const db = require("../models");
 const sendJson = require("../utils/sendJson");
 const { authorizeRoles } = require("../middleware/role.middleware");
-const { getGeoScope, buildDriverScope } = require("../middleware/scope.middleware");
+const { getGeoScope, buildDriverScope, validateScopeOverrides } = require("../middleware/scope.middleware");
 
 const getRequestBody = (req) => {
   return new Promise((resolve, reject) => {
@@ -161,6 +161,12 @@ const getAllDrivers = async (req, res, query) => {
     }
 
     const scope = getGeoScope(authResult.user);
+
+    const scopeError = await validateScopeOverrides(scope, query, db);
+    if (scopeError) {
+      return sendJson(res, scopeError.statusCode, { success: false, message: scopeError.message });
+    }
+
     const { where: geoWhere, include: geoInclude } = buildDriverScope(scope, db);
 
     const whereClause = { ...geoWhere };

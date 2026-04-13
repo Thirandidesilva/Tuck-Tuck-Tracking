@@ -2,7 +2,7 @@ const { VehicleAssignment, Driver, Vehicle, TrackingDevice, District, Province }
 const db = require("../models");
 const sendJson = require("../utils/sendJson");
 const { authorizeRoles } = require("../middleware/role.middleware");
-const { getGeoScope, applyScopeToDriverInclude } = require("../middleware/scope.middleware");
+const { getGeoScope, applyScopeToDriverInclude, validateScopeOverrides } = require("../middleware/scope.middleware");
 
 const getRequestBody = (req) => {
   return new Promise((resolve, reject) => {
@@ -46,7 +46,7 @@ const resolveEffectiveScope = (jwtScope, query) => {
     if (query.province_id) return { type: "province", province_id: parseInt(query.province_id) };
   }
   if (jwtScope.type === "province" && query.district_id) {
-    return { type: "district", district_id: parseInt(query.district_id) };
+    return { type: "district", district_id: parseInt(query.district_id), province_id: jwtScope.province_id };
   }
   return jwtScope;
 };
@@ -220,6 +220,12 @@ const getAllVehicleAssignments = async (req, res, query) => {
     }
 
     const jwtScope = getGeoScope(authResult.user);
+
+    const scopeError = await validateScopeOverrides(jwtScope, query, db);
+    if (scopeError) {
+      return sendJson(res, scopeError.statusCode, { success: false, message: scopeError.message });
+    }
+
     const effectiveScope = resolveEffectiveScope(jwtScope, query);
 
     const whereClause = {};
