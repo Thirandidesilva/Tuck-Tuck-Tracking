@@ -3,6 +3,7 @@ const app = require("./app");
 const env = require("./config/env");
 const db = require("./models");
 const { connectDB } = require("./config/db");
+const { startLocationPingJob } = require("./jobs/locationPingJob");
 
 const startServer = async () => {
   try {
@@ -11,6 +12,8 @@ const startServer = async () => {
     // Sync all Sequelize models to the database
     await db.sequelize.sync({ force: false });
     console.log("Models synchronized successfully.");
+
+    startLocationPingJob();
 
     const server = http.createServer(app);
 
