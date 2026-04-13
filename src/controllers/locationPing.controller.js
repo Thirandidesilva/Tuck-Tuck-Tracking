@@ -3,10 +3,14 @@ const {
   VehicleAssignment,
   Driver,
   Vehicle,
-  TrackingDevice
+  TrackingDevice,
+  District,
+  Province
 } = require("../models");
+const db = require("../models");
 const sendJson = require("../utils/sendJson");
 const { authorizeRoles } = require("../middleware/role.middleware");
+const { getGeoScope, applyScopeToDriverInclude } = require("../middleware/scope.middleware");
 
 const getRequestBody = (req) => {
   return new Promise((resolve, reject) => {
@@ -29,6 +33,30 @@ const getRequestBody = (req) => {
       reject(error);
     });
   });
+};
+
+// Checks if a ping's driver falls within the user's geographic scope.
+// Requires ping to be loaded with assignment → driver → district already included.
+const isPingInScope = (ping, scope) => {
+  if (scope.type === "all") return true;
+  const driver = ping.assignment?.driver;
+  if (!driver) return false;
+  if (scope.type === "district") return driver.district_id === scope.district_id;
+  if (scope.type === "province") return driver.district?.province_id === scope.province_id;
+  return false;
+};
+
+// Resolves effective scope from JWT scope + optional query param overrides.
+// Admins can narrow by province_id or district_id. Provincial officers can narrow to a district.
+const resolveEffectiveScope = (jwtScope, query) => {
+  if (jwtScope.type === "all") {
+    if (query.district_id) return { type: "district", district_id: parseInt(query.district_id) };
+    if (query.province_id) return { type: "province", province_id: parseInt(query.province_id) };
+  }
+  if (jwtScope.type === "province" && query.district_id) {
+    return { type: "district", district_id: parseInt(query.district_id) };
+  }
+  return jwtScope;
 };
 
 const createLocationPing = async (req, res) => {
@@ -64,7 +92,17 @@ const createLocationPing = async (req, res) => {
       });
     }
 
-    const assignment = await VehicleAssignment.findByPk(assignment_id);
+    // Load assignment with driver → district so we can validate geographic scope
+    const assignment = await VehicleAssignment.findByPk(assignment_id, {
+      include: [
+        {
+          model: Driver,
+          as: "driver",
+          attributes: ["driver_id", "district_id"],
+          include: [{ model: District, as: "district", attributes: ["district_id", "province_id"] }]
+        }
+      ]
+    });
 
     if (!assignment) {
       return sendJson(res, 404, {
@@ -77,6 +115,15 @@ const createLocationPing = async (req, res) => {
       return sendJson(res, 400, {
         success: false,
         message: "Location pings can only be added to an active assignment"
+      });
+    }
+
+    // All roles can create pings but only within their geographic scope
+    const scope = getGeoScope(authResult.user);
+    if (!isPingInScope({ assignment }, scope)) {
+      return sendJson(res, 403, {
+        success: false,
+        message: "You do not have access to this assignment"
       });
     }
 
@@ -119,11 +166,22 @@ const getAllLocationPings = async (req, res, query) => {
       });
     }
 
-    const whereClause = {};
+    const jwtScope = getGeoScope(authResult.user);
+    const effectiveScope = resolveEffectiveScope(jwtScope, query);
 
+    const whereClause = {};
     if (query.assignment_id) {
       whereClause.assignment_id = query.assignment_id;
     }
+
+    // Base driver include — scope is applied to this and then nested inside assignment
+    const baseDriverInclude = {
+      model: Driver,
+      as: "driver",
+      attributes: ["driver_id", "full_name", "district_id"]
+    };
+
+    const scopedDriverInclude = applyScopeToDriverInclude(effectiveScope, baseDriverInclude, db);
 
     const pings = await LocationPing.findAll({
       where: whereClause,
@@ -132,12 +190,10 @@ const getAllLocationPings = async (req, res, query) => {
           model: VehicleAssignment,
           as: "assignment",
           attributes: ["assignment_id", "status", "assigned_at"],
+          // required: true ensures the scope JOIN cascade eliminates out-of-scope pings
+          required: effectiveScope.type !== "all",
           include: [
-            {
-              model: Driver,
-              as: "driver",
-              attributes: ["driver_id", "full_name"]
-            },
+            scopedDriverInclude,
             {
               model: Vehicle,
               as: "vehicle",
@@ -185,6 +241,9 @@ const getLocationPingById = async (req, res, pingId) => {
       });
     }
 
+    // Fetch first with full display includes, then scope-check on loaded data.
+    // Same pattern as the assignment controller — avoids the duplicate District alias
+    // problem that would occur if we tried to combine display and filter includes.
     const ping = await LocationPing.findByPk(pingId, {
       include: [
         {
@@ -195,7 +254,21 @@ const getLocationPingById = async (req, res, pingId) => {
             {
               model: Driver,
               as: "driver",
-              attributes: ["driver_id", "full_name", "nic"]
+              attributes: ["driver_id", "full_name", "nic", "district_id"],
+              include: [
+                {
+                  model: District,
+                  as: "district",
+                  attributes: ["district_id", "district_name", "district_code"],
+                  include: [
+                    {
+                      model: Province,
+                      as: "province",
+                      attributes: ["province_id", "province_name", "province_code"]
+                    }
+                  ]
+                }
+              ]
             },
             {
               model: Vehicle,
@@ -216,6 +289,14 @@ const getLocationPingById = async (req, res, pingId) => {
       return sendJson(res, 404, {
         success: false,
         message: "Location ping not found"
+      });
+    }
+
+    const scope = getGeoScope(authResult.user);
+    if (!isPingInScope(ping, scope)) {
+      return sendJson(res, 403, {
+        success: false,
+        message: "You do not have access to this location ping"
       });
     }
 
@@ -249,6 +330,16 @@ const getLocationPingsByVehicleId = async (req, res, vehicleId) => {
       });
     }
 
+    const jwtScope = getGeoScope(authResult.user);
+
+    const baseDriverInclude = {
+      model: Driver,
+      as: "driver",
+      attributes: ["driver_id", "full_name", "district_id"]
+    };
+
+    const scopedDriverInclude = applyScopeToDriverInclude(jwtScope, baseDriverInclude, db);
+
     const pings = await LocationPing.findAll({
       include: [
         {
@@ -256,12 +347,9 @@ const getLocationPingsByVehicleId = async (req, res, vehicleId) => {
           as: "assignment",
           where: { vehicle_id: vehicleId },
           attributes: ["assignment_id", "vehicle_id", "driver_id", "device_id", "status"],
+          required: true,
           include: [
-            {
-              model: Driver,
-              as: "driver",
-              attributes: ["driver_id", "full_name"]
-            },
+            scopedDriverInclude,
             {
               model: Vehicle,
               as: "vehicle",

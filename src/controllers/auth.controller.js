@@ -67,12 +67,16 @@ const registerUser = async (req, res) => {
       });
     }
 
-    const stationRoles = ["STATION_OFFICER"];
+    // Both PROVINCIAL_OFFICER and STATION_OFFICER must be linked to a station.
+    // The station chain (station → district → province) is the only source of
+    // geographic scope — without it their JWT has null province_id/district_id
+    // and they would see zero data.
+    const stationRoles = ["PROVINCIAL_OFFICER", "STATION_OFFICER"];
 
     if (stationRoles.includes(role) && !station_id) {
       return sendJson(res, 400, {
         success: false,
-        message: "station_id is required for station-level users",
+        message: "station_id is required for PROVINCIAL_OFFICER and STATION_OFFICER",
       });
     }
 
