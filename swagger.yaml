@@ -26,6 +26,8 @@ info:
     The geographic chain is: **Ping → Assignment → Driver → District → Province**
 
 servers:
+  - url: https://tuk-tuk-tracking.onrender.com
+    description: Production server
   - url: http://localhost:3000
     description: Local development server
 

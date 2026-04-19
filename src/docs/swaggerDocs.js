@@ -79,8 +79,18 @@ const serveSwaggerUI = (req, res, pathname) => {
         }));
       }
 
+      const host = req.headers.host || "localhost:3000";
+      const protocol = host.includes("localhost") ? "http" : "https";
+      const currentServerUrl = `${protocol}://${host}`;
+
+      // Inject the current server as the first entry so Swagger UI selects it by default
+      const updatedData = data.replace(
+        /^servers:.*?(?=^\S)/ms,
+        `servers:\n  - url: ${currentServerUrl}\n    description: Current server\n`
+      );
+
       res.writeHead(200, { "Content-Type": "application/yaml" });
-      res.end(data);
+      res.end(updatedData);
     });
 
     return true;
