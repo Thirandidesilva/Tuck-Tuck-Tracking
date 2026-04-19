@@ -9,7 +9,13 @@ const sequelize = new Sequelize(
     host: env.dbHost,
     port: env.dbPort,
     dialect: env.dbDialect,
-    logging: false
+    logging: false,
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false
+      }
+    }
   }
 );
 
