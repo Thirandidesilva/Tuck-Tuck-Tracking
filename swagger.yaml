@@ -1153,6 +1153,161 @@ paths:
         '200':
           description: Tracking device status updated successfully
 
+  /api/v1/tracking-devices/{id}/location-pings:
+    get:
+      tags: [Tracking Devices]
+      summary: Get location pings by tracking device ID
+      description: |
+        Returns all location pings recorded by a specific tracking device,
+        filtered by the caller's geographic scope.
+
+        Scope is enforced via the driver chain:
+        **Ping → Assignment → Driver → District → Province**
+
+        | Role | Visible pings |
+        |------|---------------|
+        | SYSTEM_ADMIN / HQ_ADMIN | All pings for the device across all provinces |
+        | PROVINCIAL_OFFICER | Only pings where the assignment's driver belongs to the officer's province |
+        | STATION_OFFICER | Only pings where the assignment's driver belongs to the officer's district |
+
+        For example, a Western Province officer cannot see pings from a device
+        whose current assignment is driven by a Central Province driver, and a
+        Colombo district officer cannot see pings from a Gampaha district driver.
+
+        Results are ordered by `ping_id` descending (most recent first).
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: The numeric ID of the tracking device.
+      responses:
+        '200':
+          description: Device location pings fetched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Device location pings fetched successfully
+                  count:
+                    type: integer
+                    example: 42
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/LocationPing'
+                        - type: object
+                          properties:
+                            assignment:
+                              type: object
+                              properties:
+                                assignment_id:
+                                  type: string
+                                  format: uuid
+                                vehicle_id:
+                                  type: string
+                                  format: uuid
+                                driver_id:
+                                  type: string
+                                  format: uuid
+                                device_id:
+                                  type: integer
+                                status:
+                                  type: string
+                                  enum: [ACTIVE, COMPLETED, CANCELLED]
+                                driver:
+                                  type: object
+                                  properties:
+                                    driver_id:
+                                      type: string
+                                      format: uuid
+                                    full_name:
+                                      type: string
+                                    district_id:
+                                      type: integer
+                                    district:
+                                      type: object
+                                      properties:
+                                        district_id:
+                                          type: integer
+                                        district_name:
+                                          type: string
+                                          example: Colombo
+                                        district_code:
+                                          type: string
+                                          example: COL
+                                        province:
+                                          type: object
+                                          properties:
+                                            province_id:
+                                              type: integer
+                                            province_name:
+                                              type: string
+                                              example: Western
+                                            province_code:
+                                              type: string
+                                              example: WP
+                                vehicle:
+                                  type: object
+                                  properties:
+                                    vehicle_id:
+                                      type: string
+                                      format: uuid
+                                    registration_number:
+                                      type: string
+                                    vehicle_type:
+                                      type: string
+                                    model:
+                                      type: string
+                                device:
+                                  type: object
+                                  properties:
+                                    device_id:
+                                      type: integer
+                                    device_serial_number:
+                                      type: string
+                                    manufacturer:
+                                      type: string
+                                    model:
+                                      type: string
+        '401':
+          description: Unauthorized — missing or invalid JWT token
+        '403':
+          description: |
+            Forbidden. Two possible causes:
+            - Insufficient role to call this endpoint.
+            - The device has location data but its assignments are outside the caller's
+              geographic scope (e.g. a Western Province officer requesting a device
+              assigned to a Central Province driver, or a Colombo officer requesting
+              a device assigned to a Gampaha driver).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                wrongProvince:
+                  summary: Device is outside officer's province
+                  value:
+                    success: false
+                    message: "This device has location data but it is outside your province. You can only view data within your assigned province."
+                wrongDistrict:
+                  summary: Device is outside officer's district
+                  value:
+                    success: false
+                    message: "This device has location data but it is outside your district. You can only view data within your assigned district."
+        '404':
+          description: Tracking device not found
+
   /api/v1/vehicle-assignments:
     get:
       tags: [Vehicle Assignments]

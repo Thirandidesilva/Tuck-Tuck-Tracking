@@ -6,6 +6,8 @@ const {
   updateTrackingDeviceStatus
 } = require("../controllers/trackingDevice.controller");
 
+const { getLocationPingsByDeviceId } = require("../controllers/locationPing.controller");
+
 const trackingDeviceRoutes = async (req, res, pathname, query) => {
   if (req.method === "POST" && pathname === "/api/v1/tracking-devices") {
     return createTrackingDevice(req, res);
@@ -36,6 +38,16 @@ const trackingDeviceRoutes = async (req, res, pathname, query) => {
 
     if (req.method === "PATCH") {
       return updateTrackingDeviceStatus(req, res, deviceId);
+    }
+  }
+
+  const pingMatch = pathname.match(/^\/api\/v1\/tracking-devices\/(\d+)\/location-pings$/);
+
+  if (pingMatch) {
+    const deviceId = pingMatch[1];
+
+    if (req.method === "GET") {
+      return getLocationPingsByDeviceId(req, res, deviceId);
     }
   }
 

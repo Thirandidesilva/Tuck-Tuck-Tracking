@@ -387,9 +387,110 @@ const getLocationPingsByVehicleId = async (req, res, vehicleId) => {
   }
 };
 
+const getLocationPingsByDeviceId = async (req, res, deviceId) => {
+  try {
+    const authResult = authorizeRoles(req, [
+      "HQ_ADMIN",
+      "SYSTEM_ADMIN",
+      "PROVINCIAL_OFFICER",
+      "STATION_OFFICER",
+    ]);
+
+    if (!authResult.success) {
+      return sendJson(res, authResult.statusCode, {
+        success: false,
+        message: authResult.message,
+      });
+    }
+
+    // Verify the device exists first
+    const device = await TrackingDevice.findByPk(deviceId);
+    if (!device) {
+      return sendJson(res, 404, {
+        success: false,
+        message: "Tracking device not found"
+      });
+    }
+
+    const jwtScope = getGeoScope(authResult.user);
+
+    const baseDriverInclude = {
+      model: Driver,
+      as: "driver",
+      attributes: ["driver_id", "full_name", "district_id"]
+    };
+
+    const scopedDriverInclude = applyScopeToDriverInclude(jwtScope, baseDriverInclude, db);
+
+    const pings = await LocationPing.findAll({
+      include: [
+        {
+          model: VehicleAssignment,
+          as: "assignment",
+          where: { device_id: deviceId },
+          attributes: ["assignment_id", "vehicle_id", "driver_id", "device_id", "status"],
+          required: true,
+          include: [
+            scopedDriverInclude,
+            {
+              model: Vehicle,
+              as: "vehicle",
+              attributes: ["vehicle_id", "registration_number", "vehicle_type", "model"]
+            },
+            {
+              model: TrackingDevice,
+              as: "device",
+              attributes: ["device_id", "device_serial_number", "manufacturer", "model"]
+            }
+          ]
+        }
+      ],
+      order: [["ping_id", "DESC"]]
+    });
+
+    // If nothing came back for a scoped officer, check whether pings actually exist
+    // for this device outside their scope — if so, give a clear access error instead
+    // of a misleading empty array.
+    if (pings.length === 0 && jwtScope.type !== "all") {
+      const outOfScopeCount = await LocationPing.count({
+        include: [
+          {
+            model: VehicleAssignment,
+            as: "assignment",
+            where: { device_id: deviceId },
+            required: true
+          }
+        ]
+      });
+
+      if (outOfScopeCount > 0) {
+        const areaLabel = jwtScope.type === "district" ? "district" : "province";
+        return sendJson(res, 403, {
+          success: false,
+          message: `This device has location data but it is outside your ${areaLabel}. You can only view data within your assigned ${areaLabel}.`
+        });
+      }
+    }
+
+    return sendJson(res, 200, {
+      success: true,
+      message: "Device location pings fetched successfully",
+      count: pings.length,
+      data: pings
+    });
+  } catch (error) {
+    return sendJson(res, 500, {
+      success: false,
+      message: "Failed to fetch device location pings",
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   createLocationPing,
   getAllLocationPings,
   getLocationPingById,
-  getLocationPingsByVehicleId
+  getLocationPingsByVehicleId,
+  getLocationPingsByDeviceId
 };
